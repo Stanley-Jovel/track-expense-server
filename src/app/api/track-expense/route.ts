@@ -1,8 +1,6 @@
 import { NextResponse } from 'next/server';
-import { LLMServiceFactory } from '@/app/services/llm/factory';
-import { SpreadsheetServiceFactory } from '@/app/services/spreadsheet/factory';
-import { InvalidInputError } from '@/app/services/llm/types';
-import { SpreadsheetWriteError } from '@/app/services/spreadsheet/types';
+import { LLMServiceFactory, InvalidInputError } from '@/app/services/llm';
+import { SpreadsheetServiceFactory, SpreadsheetWriteError } from '@/app/services/spreadsheet';
 
 export async function POST(request: Request) {
   try {
