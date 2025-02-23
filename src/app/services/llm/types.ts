@@ -1,6 +1,6 @@
 export type ExpenseType = 'Income' | 'Expense';
 
-export interface ParsedExpense {
+export interface ParsedTransaction {
   motive: string;
   amount: number;
   type: ExpenseType;
@@ -8,7 +8,7 @@ export interface ParsedExpense {
 }
 
 export interface LLMApiService {
-  parseExpense(text: string): Promise<ParsedExpense>;
+  parseTransaction(text: string): Promise<ParsedTransaction[]>;
 }
 
 export class InvalidInputError extends Error {

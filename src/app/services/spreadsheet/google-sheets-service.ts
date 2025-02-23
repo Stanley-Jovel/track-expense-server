@@ -1,7 +1,7 @@
 import { google } from 'googleapis';
 import { JWT } from 'google-auth-library';
 import { SpreadsheetService, SpreadsheetWriteError, SpreadsheetPermissionError } from './types';
-import { ParsedExpense } from '../llm/types';
+import { ParsedTransaction } from '../llm/types';
 
 export class GoogleSheetsService implements SpreadsheetService {
   private auth: JWT;
@@ -46,15 +46,17 @@ export class GoogleSheetsService implements SpreadsheetService {
     });
   }
 
-  async writeExpense(data: ParsedExpense): Promise<void> {
+  async appendTransaction(transactions: ParsedTransaction[]): Promise<void> {
     try {
-      const row = [
-        this.formatDate(new Date()),
-        data.motive,
-        data.amount.toString(),
-        data.type,
-        data.category,
-      ];
+      const currentTimestamp = this.formatDate(new Date());
+
+      const rows = transactions.map(transaction => [
+        currentTimestamp,
+        transaction.motive,
+        transaction.amount.toString(),
+        transaction.type,
+        transaction.category,
+      ]);
 
       await this.sheets.spreadsheets.values.append({
         auth: this.auth,
@@ -62,7 +64,7 @@ export class GoogleSheetsService implements SpreadsheetService {
         range: `${this.sheetNames.transactions}!A:E`,
         valueInputOption: 'USER_ENTERED',
         requestBody: {
-          values: [row],
+          values: rows,
         },
       });
     } catch (error: unknown) {
@@ -74,4 +76,4 @@ export class GoogleSheetsService implements SpreadsheetService {
       );
     }
   }
-} 
+}

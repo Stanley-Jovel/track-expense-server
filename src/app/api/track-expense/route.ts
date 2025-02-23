@@ -22,13 +22,17 @@ export async function POST(request: Request) {
     );
 
     try {
-      const parsedData = await llmService.parseExpense(transaction);
-      await spreadsheetService.writeExpense(parsedData);
+      const parsedData = await llmService.parseTransaction(transaction);
+      await spreadsheetService.appendTransaction(parsedData);
+
+      const summary = parsedData
+        .map(t => `${t.type === 'Expense' ? 'Spent' : 'Received'} ${t.amount} for ${t.motive}`)
+        .join('\n');
 
       return NextResponse.json(
         { 
-          message: `${parsedData.type} logged successfully`,
-          data: parsedData 
+          message: summary,
+          data: parsedData
         },
         { status: 200 }
       );

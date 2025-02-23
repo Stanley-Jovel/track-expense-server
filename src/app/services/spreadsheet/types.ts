@@ -1,7 +1,7 @@
-import { ParsedExpense } from '../llm/types';
+import { ParsedTransaction } from '../llm/types';
 
 export interface SpreadsheetService {
-  writeExpense(data: ParsedExpense): Promise<void>;
+  appendTransaction(data: ParsedTransaction[]): Promise<void>;
 }
 
 export class SpreadsheetWriteError extends Error {

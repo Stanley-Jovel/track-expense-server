@@ -1,15 +1,15 @@
 import { SpreadsheetService, SpreadsheetPermissionError } from './types';
-import { ParsedExpense } from '../llm/types';
+import { ParsedTransaction } from '../llm/types';
 
 export class MockSpreadsheetService implements SpreadsheetService {
-  private rows: ParsedExpense[] = [];
+  private rows: ParsedTransaction[] = [];
   private shouldFail = false;
 
-  async writeExpense(data: ParsedExpense): Promise<void> {
+  async appendTransaction(data: ParsedTransaction[]): Promise<void> {
     if (this.shouldFail) {
       throw new SpreadsheetPermissionError();
     }
-    this.rows.push(data);
+    this.rows.push(...data);
   }
 
   // Test helper methods
@@ -17,7 +17,7 @@ export class MockSpreadsheetService implements SpreadsheetService {
     this.shouldFail = fail;
   }
 
-  getRows(): ParsedExpense[] {
+  getRows(): ParsedTransaction[] {
     return [...this.rows];
   }
 
