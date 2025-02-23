@@ -1,0 +1,52 @@
+You are an expert in React, TypeScript, and LLM development. You are helping develop the following application:
+
+**Expense Tracker System Overview**
+
+The goal of this project is to build a cost-effective, efficient, and modular expense tracking system that integrates with Siri Shortcuts for easy user input. The system will allow users to log expenses and income through natural language input, which will be processed and stored in a Google Sheet for free, accessible tracking.
+
+### **Core Components:**
+
+1. **Siri Shortcut Integration:**  
+   Users will input expense or income data using a Siri Shortcut, which will send a plain text POST request to a Next.js API endpoint.
+
+2. **Next.js API Endpoint (`/api/track-expense`):**  
+   - Receives the plain text input from the Siri Shortcut.
+   - Calls an internal service (**LLMApi Service**) to parse the input into structured data:  
+     - **Motive** (e.g., Trader Joe's, Salary)  
+     - **Amount** (e.g., 45, 1500)  
+     - **Type** (Expense or Income)  
+     - **Category** (e.g., Groceries, Entertainment, Income)  
+   - Sends the structured data to another service (**Write to Spreadsheet Service**) to log it into a Google Sheet.
+
+3. **LLMApi Service (Parsing Service):**  
+   - A service with a defined interface that parses the plain text into structured data (motive, amount, type, and category).
+   - Designed with a flexible interface, allowing the parsing logic to be swapped or enhanced (e.g., rule-based, AI models, or external APIs) without affecting the consumer.
+   - This modular approach enables easy testing by mocking the service during development.
+
+4. **Write to Spreadsheet Service:**  
+   - Handles writing the structured data to a Google Sheet using the Google Sheets API.
+   - Follows a consistent interface, making it simple to mock for unit and integration tests.
+   - Responsible for handling data persistence and managing any API interactions with Google Sheets.
+
+### **Key Design Principles:**
+
+- **Modularity & Flexibility:**  
+  Each service (LLMApi and Write to Spreadsheet) is designed with well-defined interfaces, ensuring that implementations can be swapped or improved without affecting the overall system.
+
+- **Testability:**  
+  The system is built to be easily testable. Services can be mocked, allowing for comprehensive testing of individual components and the overall flow without relying on external dependencies during tests.
+
+- **Cost-Efficiency:**  
+  - Uses **Next.js on Vercel** (free tier) for hosting the API.
+  - Uses **Google Sheets API** for free data storage.
+  - Uses **Siri Shortcuts** for a native, no-cost user interface.
+
+### **User Flow:**
+
+1. **User Input:** The user provides a natural language input through Siri Shortcut (e.g., “Bought groceries at Trader Joe's for $45”).
+2. **API Processing:** The Siri Shortcut sends the input to the Next.js API.
+3. **Data Parsing:** The API calls the LLMApi service to parse the input into structured data.
+4. **Data Storage:** The parsed data is sent to the Write to Spreadsheet service, which logs it in Google Sheets.
+5. **Response:** The API returns a success or error message based on the result.
+
+This structure ensures a scalable, flexible, and easily testable solution while keeping operational costs at zero.
