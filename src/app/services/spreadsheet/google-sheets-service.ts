@@ -67,6 +67,23 @@ export class GoogleSheetsService implements SpreadsheetService {
           values: rows,
         },
       });
+
+      // Read-after-write verification (LLM-06)
+      const readResponse = await this.sheets.spreadsheets.values.get({
+        auth: this.auth,
+        spreadsheetId: this.spreadsheetId,
+        range: `${this.sheetNames.transactions}!A:E`,
+      });
+      const writtenRows = readResponse.data.values || [];
+      const lastWrittenRow = writtenRows[writtenRows.length - 1];
+      if (!lastWrittenRow || lastWrittenRow[1] !== rows[rows.length - 1][1]) {
+        console.error('[SHEETS] Read-after-write verification FAILED: last row mismatch', {
+          expected: rows[rows.length - 1],
+          actual: lastWrittenRow ?? null,
+        });
+        throw new SpreadsheetWriteError('Write verification failed: data may not have been persisted');
+      }
+      console.log(`[SHEETS] Write verified: ${rows.length} row(s) appended successfully`);
     } catch (error: unknown) {
       if (error instanceof Error && error.message.includes('permission')) {
         throw new SpreadsheetPermissionError();
