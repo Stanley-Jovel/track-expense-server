@@ -1,5 +1,6 @@
 import { LLMApiService, ParsedTransaction, InvalidInputError } from './types';
-import { ParsedTransactionsSchema, EXPENSE_CATEGORIES } from './openai-service';
+import { ParsedTransactionsSchema } from './openai-service';
+import { EXPENSE_CATEGORIES } from './constants';
 
 /**
  * Shared system prompt for all LLM providers.

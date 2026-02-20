@@ -2,13 +2,7 @@ import OpenAI from 'openai';
 import { zodResponseFormat } from 'openai/helpers/zod';
 import { z } from 'zod';
 import { BaseLLMService } from './base-llm-service';
-
-export const EXPENSE_CATEGORIES = [
-  'Groceries', 'Dining', 'Transportation', 'Housing', 'Utilities',
-  'Healthcare', 'Entertainment', 'Shopping', 'Travel', 'Education',
-  'Income', 'Other'
-] as const;
-export type ExpenseCategory = typeof EXPENSE_CATEGORIES[number];
+import { EXPENSE_CATEGORIES } from './constants';
 
 export const ParsedTransactionsSchema = z.object({
   parsed_transactions: z.array(
