@@ -7,7 +7,7 @@
 
 ## Phases
 
-- [ ] **Phase 1: LLM Provider Integration** - Switch from ChatGPT to Z.ai GLM-4-Flash with provider abstraction and safety controls
+- [x] **Phase 1: LLM Provider Integration** - Switch from ChatGPT to Z.ai GLM-4-Flash with provider abstraction and safety controls (completed 2026-02-20)
 - [ ] **Phase 2: Category Generation & Data Quality** - Generate 12 fixed categories from real data and implement quality controls
 - [ ] **Phase 3: Analytics API** - Build backend API to expose spending breakdowns by category and time
 - [ ] **Phase 4: Frontend Dashboard** - Create React dashboard with pie chart and trend line visualizations
@@ -31,7 +31,7 @@
 6. When Z.ai API fails, the system logs the error and verifies the response was not partially persisted to Google Sheets (LLM-06)
 7. System operators can monitor total API spend per transaction and identify if costs exceed budget threshold (LLM-07)
 
-**Plans:** 2 plans
+**Plans:** 2/2 plans complete
 
 Plans:
 - [ ] 01-01-PLAN.md — Z.ai + Deepseek provider services, FallbackLLMService, factory env var routing, input sanitization, cost monitoring
@@ -111,7 +111,7 @@ The following requirements apply throughout all phases and are validated continu
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. LLM Provider Integration | 0/2 | Planned | — |
+| 1. LLM Provider Integration | 2/2 | Complete   | 2026-02-20 |
 | 2. Category Generation & Data Quality | 0/TBD | Not started | — |
 | 3. Analytics API | 0/TBD | Not started | — |
 | 4. Frontend Dashboard | 0/TBD | Not started | — |

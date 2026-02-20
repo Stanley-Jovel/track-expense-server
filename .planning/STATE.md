@@ -2,7 +2,7 @@
 
 **Project Reference:**
 - **Core Value:** Low-cost expense tracking with accurate, predictable categorization and clear visibility into where money goes
-- **Current Focus:** Roadmap phase 1 (LLM provider integration) - Plan 01 complete
+- **Current Focus:** Roadmap phase 1 (LLM provider integration) - Plan 02 complete (checkpoint pending)
 - **Last Updated:** 2026-02-20
 
 ## Current Position
@@ -10,17 +10,17 @@
 | Attribute | Value |
 |-----------|-------|
 | **Current Phase** | 01-llm-provider-integration |
-| **Current Plan** | 01 (complete) |
-| **Status** | Plan 01-01 complete; awaiting next plan execution |
-| **Progress** | Roadmap: 1/1 complete. Phase 1: 1 plan complete. |
-| **Last Session** | 2026-02-20T17:31:03Z |
-| **Stopped At** | Completed 01-llm-provider-integration-01-PLAN.md |
+| **Current Plan** | 02 (complete; human verification checkpoint pending) |
+| **Status** | Plan 01-02 auto tasks complete; awaiting end-to-end verification with real API keys |
+| **Progress** | Roadmap: 1/1 complete. Phase 1: 2 plans complete. |
+| **Last Session** | 2026-02-20T17:40:00Z |
+| **Stopped At** | Completed 01-llm-provider-integration-02-PLAN.md (checkpoint) |
 
 ## Project State
 
 ```
 Roadmap:      ████████████████████ 100%
-Phase 1:      ████░░░░░░░░░░░░░░░░  ~25% (1 plan executed)
+Phase 1:      ████████░░░░░░░░░░░░  ~50% (2 plans executed)
 Phase 2:      ░░░░░░░░░░░░░░░░░░░░   0%
 Phase 3:      ░░░░░░░░░░░░░░░░░░░░   0%
 Phase 4:      ░░░░░░░░░░░░░░░░░░░░   0%
@@ -35,6 +35,7 @@ Phase 4:      ░░░░░░░░░░░░░░░░░░░░   0%
 | Avg success criteria per phase | 5 | 2-5 |
 | Depth setting | Quick | Quick |
 | Phase 01-llm-provider-integration P01 | 3 min | 2 tasks | 7 files |
+| Phase 01-llm-provider-integration P02 | 3min | 2 tasks | 4 files |
 
 ## Phase Breakdown
 
@@ -85,6 +86,14 @@ Phase 4:      ░░░░░░░░░░░░░░░░░░░░   0%
    - Z.ai -> Groq -> OpenAI chain via LLMServiceFactory.createWithFallbacks()
    - NODE_ENV=test still returns MockLLMService (backward compatible)
 
+8. **ParsedTransaction.category stays as string TypeScript type** (Plan 02)
+   - Zod enum is the enforcement boundary to avoid breaking changes elsewhere
+   - Type can be tightened to ExpenseCategory in a later phase
+
+9. **Read-after-write verification uses motive field (column B)** (Plan 02)
+   - Avoids date formatting fragility in comparing expected vs actual row
+   - Lightweight sanity check that confirms row exists and matches
+
 ### Open Questions (None - Research Complete)
 
 Research phase addressed all critical unknowns:
@@ -102,6 +111,8 @@ No current blockers.
 - [x] Review and approve ROADMAP.md
 - [x] Start Phase 1 planning with `/gsd:plan-phase 1`
 - [x] Implement Phase 1, Plan 01 (ZAIService, GroqService, MultiFallbackLLMService)
+- [x] Implement Phase 1, Plan 02 (category enum, system prompts, sheets read-after-write)
+- [ ] Fill in ZAI_API_KEY and GROQ_API_KEY in .env and verify end-to-end
 - [ ] Validate Z.ai categorization accuracy against OpenAI baseline
 - [ ] Execute remaining Phase 1 plans
 - [ ] Proceed to Phase 2 upon Phase 1 completion
@@ -110,8 +121,8 @@ No current blockers.
 
 **If context resets:**
 
-1. Current state: Phase 1, Plan 01 complete. Multi-provider LLM services implemented.
-2. Plan summary: `.planning/phases/01-llm-provider-integration/01-01-SUMMARY.md`
+1. Current state: Phase 1, Plan 02 complete (checkpoint). Schema hardening + Sheets read-after-write implemented.
+2. Plan summaries: `.planning/phases/01-llm-provider-integration/01-01-SUMMARY.md` and `01-02-SUMMARY.md`
 3. Roadmap location: `.planning/ROADMAP.md`
 4. Requirements location: `.planning/REQUIREMENTS.md` (includes traceability)
 5. Next action: Execute next plan in Phase 1 (if any), or proceed to Phase 2
@@ -132,4 +143,4 @@ No current blockers.
 ---
 
 *State initialized: 2026-02-19*
-*Last updated: 2026-02-20 (Plan 01-01 complete)*
+*Last updated: 2026-02-20 (Plan 01-02 complete, checkpoint pending)*
