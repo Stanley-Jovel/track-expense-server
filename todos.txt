@@ -1,0 +1,5 @@
+- automation of shortcut
+
+- Actually, provide month summary on success
+
+- protect endpoint?

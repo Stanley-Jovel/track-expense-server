@@ -1,7 +1,7 @@
 import OpenAI from 'openai';
 import { zodResponseFormat } from 'openai/helpers/zod';
 import { z } from 'zod';
-import { LLMApiService, ParsedTransaction, InvalidInputError } from './types';
+import { BaseLLMService } from './base-llm-service';
 
 export const EXPENSE_CATEGORIES = [
   'Groceries', 'Dining', 'Transportation', 'Housing', 'Utilities',
@@ -20,9 +20,10 @@ export const ParsedTransactionsSchema = z.object({
     }))
 });
 
-export class OpenAIService implements LLMApiService {
+export class OpenAIService extends BaseLLMService {
   private client: OpenAI;
-  private static SYSTEM_PROMPT = `You are a financial transaction parser. Parse the input text into structured data. The input text may contain one or more transactions.
+
+  protected readonly systemPrompt = `You are a financial transaction parser. Parse the input text into structured data. The input text may contain one or more transactions.
 
 You MUST categorize each transaction using ONLY one of these exact category values: Groceries, Dining, Transportation, Housing, Utilities, Healthcare, Entertainment, Shopping, Travel, Education, Income, Other.
 
@@ -30,7 +31,12 @@ Do not invent new categories. If a transaction does not fit any category, use 'O
 
 For invalid inputs, respond with {"error": "Invalid input format"}.`;
 
+  protected readonly providerName = 'openai';
+  protected readonly inputCostPer1M = 0; // Placeholder — actual cost is model-specific
+  protected readonly outputCostPer1M = 0; // We don't log cost for OpenAI in this version
+
   constructor() {
+    super();
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
       throw new Error('OPENAI_API_KEY environment variable is required');
@@ -38,49 +44,15 @@ For invalid inputs, respond with {"error": "Invalid input format"}.`;
     this.client = new OpenAI({ apiKey });
   }
 
-  async parseTransaction(text: string): Promise<ParsedTransaction[]> {
-    try {
-      const completion = await this.client.chat.completions.create({
-        model: "gpt-4o",
-        messages: [
-          { role: "system", content: OpenAIService.SYSTEM_PROMPT },
-          { role: "user", content: text }
-        ],
-        temperature: 0.1,
-        response_format: zodResponseFormat(ParsedTransactionsSchema, 'parsed_transactions')
-      });
-
-      const response = JSON.parse(completion.choices[0].message.content || '{}');
-
-      if (response.error) {
-        throw new InvalidInputError(response.error);
-      }
-
-      // Validate response structure
-      if (!this.isValidParsedExpense(response)) {
-        throw new InvalidInputError();
-      }
-
-      return response.parsed_transactions;
-    } catch (error) {
-      if (error instanceof InvalidInputError) {
-        throw error;
-      }
-      throw new Error('Failed to parse expense');
-    }
-  }
-
-  private isValidParsedExpense(data: { parsed_transactions: ParsedTransaction[] }): data is { parsed_transactions: ParsedTransaction[] } {
-    return (
-      data &&
-      Array.isArray(data.parsed_transactions) &&
-      data.parsed_transactions.length > 0 &&
-      data.parsed_transactions.every((transaction: ParsedTransaction) =>
-        typeof transaction.motive === 'string' &&
-        typeof transaction.amount === 'number' &&
-        (transaction.type === 'Income' || transaction.type === 'Expense') &&
-        typeof transaction.category === 'string'
-      )
-    );
+  async createCompletion(sanitized: string) {
+    return this.client.chat.completions.create({
+      model: "gpt-4o",
+      messages: [
+        { role: "system", content: this.systemPrompt },
+        { role: "user", content: sanitized }
+      ],
+      temperature: 0.1,
+      response_format: zodResponseFormat(ParsedTransactionsSchema, 'parsed_transactions')
+    });
   }
 }
