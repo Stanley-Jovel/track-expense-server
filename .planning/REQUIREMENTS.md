@@ -7,13 +7,13 @@
 
 ### LLM Provider Integration (Phase 1)
 
-- [ ] **LLM-01**: System uses Z.ai GLM-4-Flash API for expense categorization instead of ChatGPT
-- [ ] **LLM-02**: LLM API provider is abstracted (swap providers by changing config/env variables)
-- [ ] **LLM-03**: Deepseek-V3 is available as fallback provider when Z.ai is unavailable
+- [x] **LLM-01**: System uses Z.ai GLM-4-Flash API for expense categorization instead of ChatGPT
+- [x] **LLM-02**: LLM API provider is abstracted (swap providers by changing config/env variables)
+- [x] **LLM-03**: Deepseek-V3 is available as fallback provider when Z.ai is unavailable
 - [ ] **LJM-04**: System prompt enforces categorization into fixed 12-category enum (rejects other categories)
-- [ ] **LLM-05**: Input sanitization prevents prompt injection attacks via transaction text
+- [x] **LLM-05**: Input sanitization prevents prompt injection attacks via transaction text
 - [ ] **LLM-06**: API failures include proper error handling with read-after-write verification
-- [ ] **LLM-07**: Cost monitoring tracks API spend per transaction (alerts if exceeds budget)
+- [x] **LLM-07**: Cost monitoring tracks API spend per transaction (alerts if exceeds budget)
 
 ### Category Generation & Data Quality (Phase 2)
 
@@ -85,13 +85,13 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| LLM-01 | Phase 1 | Pending |
-| LLM-02 | Phase 1 | Pending |
-| LLM-03 | Phase 1 | Pending |
+| LLM-01 | Phase 1 | Complete |
+| LLM-02 | Phase 1 | Complete |
+| LLM-03 | Phase 1 | Complete |
 | LLM-04 | Phase 1 | Pending |
-| LLM-05 | Phase 1 | Pending |
+| LLM-05 | Phase 1 | Complete |
 | LLM-06 | Phase 1 | Pending |
-| LLM-07 | Phase 1 | Pending |
+| LLM-07 | Phase 1 | Complete |
 | CAT-01 | Phase 2 | Pending |
 | CAT-02 | Phase 2 | Pending |
 | CAT-03 | Phase 2 | Pending |
