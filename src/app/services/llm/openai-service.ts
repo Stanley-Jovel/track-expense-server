@@ -23,14 +23,6 @@ export const ParsedTransactionsSchema = z.object({
 export class OpenAIService extends BaseLLMService {
   private client: OpenAI;
 
-  protected readonly systemPrompt = `You are a financial transaction parser. Parse the input text into structured data. The input text may contain one or more transactions.
-
-You MUST categorize each transaction using ONLY one of these exact category values: Groceries, Dining, Transportation, Housing, Utilities, Healthcare, Entertainment, Shopping, Travel, Education, Income, Other.
-
-Do not invent new categories. If a transaction does not fit any category, use 'Other'.
-
-For invalid inputs, respond with {"error": "Invalid input format"}.`;
-
   protected readonly providerName = 'openai';
   protected readonly inputCostPer1M = 0; // Placeholder — actual cost is model-specific
   protected readonly outputCostPer1M = 0; // We don't log cost for OpenAI in this version
