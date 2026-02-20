@@ -17,9 +17,9 @@
 
 ### Category Generation & Data Quality (Phase 2)
 
-- [ ] **CAT-01**: Script analyzes existing Google Sheets transactions and suggests 12 representative categories
-- [ ] **CAT-02**: System uses generated categories in fixed enum (prevents random category selection)
-- [ ] **CAT-03**: Category enum is stored in system prompt and applied to all categorization requests
+- [x] **CAT-01**: Script analyzes existing Google Sheets transactions and suggests 12 representative categories
+- [x] **CAT-02**: System uses generated categories in fixed enum (prevents random category selection)
+- [x] **CAT-03**: Category enum is stored in system prompt and applied to all categorization requests
 - [ ] **CAT-04**: Duplicate transaction detection prevents same expense logged twice (per request UUID)
 - [ ] **CAT-05**: Category validation rejects unknown categories and logs mismatches
 - [ ] **CAT-06**: Transactions that fail categorization are marked "Uncategorized" instead of silently failing
@@ -92,9 +92,9 @@
 | LLM-05 | Phase 1 | Complete |
 | LLM-06 | Phase 1 | Complete |
 | LLM-07 | Phase 1 | Complete |
-| CAT-01 | Phase 2 | Pending |
-| CAT-02 | Phase 2 | Pending |
-| CAT-03 | Phase 2 | Pending |
+| CAT-01 | Phase 2 | Complete |
+| CAT-02 | Phase 2 | Complete |
+| CAT-03 | Phase 2 | Complete |
 | CAT-04 | Phase 2 | Pending |
 | CAT-05 | Phase 2 | Pending |
 | CAT-06 | Phase 2 | Pending |
