@@ -3,7 +3,7 @@
 **Project:** Personal expense tracking system with cost-effective LLM categorization and visual dashboard
 **Depth:** Quick (4 phases, critical path)
 **Status:** Draft
-**Last updated:** 2026-02-19
+**Last updated:** 2026-02-20
 
 ## Phases
 
@@ -54,7 +54,11 @@ Plans:
 4. System rejects transactions with unknown/invalid categories and logs which transaction failed categorization (CAT-05)
 5. Transactions that fail LLM categorization are marked "Uncategorized" in Google Sheets instead of being silently dropped from the system (CAT-06)
 
-**Plans:** TBD
+**Plans:** 2 plans
+
+Plans:
+- [ ] 02-01-PLAN.md — Category generation script, getAllTransactions() for Sheets, update EXPENSE_CATEGORIES with Uncategorized, fix system prompt fallback wording
+- [ ] 02-02-PLAN.md — UUID duplicate detection (column F), DuplicateRequestError (409), category validation logging, Uncategorized fallback on parse failure
 
 ---
 
@@ -112,7 +116,7 @@ The following requirements apply throughout all phases and are validated continu
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. LLM Provider Integration | 2/2 | Complete   | 2026-02-20 |
-| 2. Category Generation & Data Quality | 0/TBD | Not started | — |
+| 2. Category Generation & Data Quality | 0/2 | Not started | — |
 | 3. Analytics API | 0/TBD | Not started | — |
 | 4. Frontend Dashboard | 0/TBD | Not started | — |
 
@@ -127,3 +131,4 @@ The following requirements apply throughout all phases and are validated continu
 
 *Roadmap created: 2026-02-19*
 *Phase 1 planned: 2026-02-19 — 2 plans, 2 waves*
+*Phase 2 planned: 2026-02-20 — 2 plans, 2 waves*
