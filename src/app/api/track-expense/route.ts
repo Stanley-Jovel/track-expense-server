@@ -14,9 +14,9 @@ export async function POST(request: Request) {
       );
     }
 
-    const llmService = LLMServiceFactory.create(
-      process.env.NODE_ENV === 'test' ? 'mock' : 'production'
-    );
+    const llmService = process.env.NODE_ENV === 'test'
+      ? LLMServiceFactory.create('mock')
+      : LLMServiceFactory.createWithFallbacks();
     const spreadsheetService = SpreadsheetServiceFactory.create(
         process.env.NODE_ENV === 'test' ? 'mock' : 'production'
     );
