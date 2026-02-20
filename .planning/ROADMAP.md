@@ -2,65 +2,31 @@
 
 **Project:** Personal expense tracking system with cost-effective LLM categorization and visual dashboard
 **Depth:** Quick (4 phases, critical path)
-**Status:** Draft
+**Status:** In Progress (v1.0 shipped, v1.1 planning)
 **Last updated:** 2026-02-20
+
+## Milestones
+
+- ✅ **v1.0 Foundation** — Phases 1-2 (shipped 2026-02-20)
+- 🚧 **v1.1 Analytics & Dashboard** — Phases 3-4 (planned)
 
 ## Phases
 
-- [x] **Phase 1: LLM Provider Integration** - Switch from ChatGPT to Z.ai GLM-4-Flash with provider abstraction and safety controls (completed 2026-02-20)
-- [x] **Phase 2: Category Generation & Data Quality** - Generate 12 fixed categories from real data and implement quality controls (completed 2026-02-20)
-- [ ] **Phase 3: Analytics API** - Build backend API to expose spending breakdowns by category and time
-- [ ] **Phase 4: Frontend Dashboard** - Create React dashboard with pie chart and trend line visualizations
+<details open>
+<summary>✅ v1.0 Foundation (Phases 1-2) — SHIPPED 2026-02-20</summary>
 
-## Phase Details
+- [x] Phase 1: LLM Provider Integration (2/2 plans) — completed 2026-02-20
+- [x] Phase 2: Category Generation & Data Quality (2/2 plans) — completed 2026-02-20
 
-### Phase 1: LLM Provider Integration
+**Shipped:** Multi-provider LLM architecture (Z.ai/Groq/OpenAI), 12-category enum enforcement, UUID dedup, recoverable parse failures.
 
-**Goal:** Replace ChatGPT with cost-effective Z.ai GLM-4-Flash while maintaining categorization accuracy and adding safety controls
+See `.planning/milestones/v1.0-ROADMAP.md` for detailed phase breakdown.
 
-**Depends on:** None (foundation phase)
+</details>
 
-**Requirements:** LLM-01, LLM-02, LLM-03, LLM-04, LLM-05, LLM-06, LLM-07
+## Phase Details (v1.1+)
 
-**Success Criteria** (what must be TRUE when complete):
-1. User sends expense via Siri Shortcut and system categorizes it using Z.ai instead of ChatGPT (LLM-01)
-2. User can switch LLM providers by changing environment variables without code modifications (LLM-02)
-3. System automatically falls back to Deepseek-V3 when Z.ai is unavailable, with no user intervention required (LLM-03)
-4. System consistently categorizes transactions into exactly the 12 defined categories, rejecting any other category values (LLM-04)
-5. Maliciously crafted transaction text (prompt injection attempts) does not cause the LLM to return unexpected categories (LLM-05)
-6. When Z.ai API fails, the system logs the error and verifies the response was not partially persisted to Google Sheets (LLM-06)
-7. System operators can monitor total API spend per transaction and identify if costs exceed budget threshold (LLM-07)
-
-**Plans:** 2/2 plans complete
-
-Plans:
-- [ ] 01-01-PLAN.md — Z.ai + Deepseek provider services, FallbackLLMService, factory env var routing, input sanitization, cost monitoring
-- [ ] 01-02-PLAN.md — 12-category enum enforcement in Zod schema, hardened system prompts, read-after-write verification, env config + human verify
-
----
-
-### Phase 2: Category Generation & Data Quality
-
-**Goal:** Derive 12 representative expense categories from existing transaction history and prevent data quality issues
-
-**Depends on:** Phase 1 (LLM provider must be stable to reliably categorize historical data)
-
-**Requirements:** CAT-01, CAT-02, CAT-03, CAT-04, CAT-05, CAT-06
-
-**Success Criteria** (what must be TRUE when complete):
-1. User runs category generation script and gets 12 representative categories extracted from their existing Google Sheets transactions (CAT-01)
-2. System uses these 12 categories in the LLM system prompt and rejects categorization attempts that suggest any other category (CAT-02, CAT-03)
-3. When user submits the same expense twice (detected via request UUID), the second submission is rejected or merged with the first, preventing duplicate charges (CAT-04)
-4. System rejects transactions with unknown/invalid categories and logs which transaction failed categorization (CAT-05)
-5. Transactions that fail LLM categorization are marked "Uncategorized" in Google Sheets instead of being silently dropped from the system (CAT-06)
-
-**Plans:** 2/2 plans complete
-
-Plans:
-- [ ] 02-01-PLAN.md — Category generation script, getAllTransactions() for Sheets, update EXPENSE_CATEGORIES with Uncategorized, fix system prompt fallback wording
-- [ ] 02-02-PLAN.md — UUID duplicate detection (column F), DuplicateRequestError (409), category validation logging, Uncategorized fallback on parse failure
-
----
+### Phase 3: Analytics API
 
 ### Phase 3: Analytics API
 
@@ -113,12 +79,12 @@ The following requirements apply throughout all phases and are validated continu
 
 ## Progress Tracking
 
-| Phase | Plans Complete | Status | Completed |
-|-------|----------------|--------|-----------|
-| 1. LLM Provider Integration | 2/2 | Complete   | 2026-02-20 |
-| 2. Category Generation & Data Quality | 2/2 | Complete   | 2026-02-20 |
-| 3. Analytics API | 0/TBD | Not started | — |
-| 4. Frontend Dashboard | 0/TBD | Not started | — |
+| Milestone | Phase | Plans Complete | Status | Completed |
+|-----------|-------|----------------|--------|-----------|
+| v1.0 | 1. LLM Provider Integration | 2/2 | Complete   | 2026-02-20 |
+| v1.0 | 2. Category Generation & Data Quality | 2/2 | Complete   | 2026-02-20 |
+| v1.1 | 3. Analytics API | 0/TBD | Not started | — |
+| v1.1 | 4. Frontend Dashboard | 0/TBD | Not started | — |
 
 ## Coverage Summary
 
