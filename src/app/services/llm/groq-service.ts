@@ -1,5 +1,5 @@
 import Groq from 'groq-sdk';
-import { BaseLLMService } from './base-llm-service';
+import { BaseLLMService, SHARED_SYSTEM_PROMPT } from './base-llm-service';
 import { ParsedTransaction, InvalidInputError } from './types';
 
 export class GroqService extends BaseLLMService {
@@ -8,13 +8,8 @@ export class GroqService extends BaseLLMService {
   protected readonly providerName = 'groq';
   protected readonly inputCostPer1M = 0.27; // Groq pricing per 1M tokens
   protected readonly outputCostPer1M = 0.27; // Groq pricing per 1M tokens
-  protected readonly systemPrompt = `You are a financial transaction parser. Parse the input text into structured data. The input text may contain one or more transactions.
-
-You MUST categorize each transaction using ONLY one of these exact category values: Groceries, Dining, Transportation, Housing, Utilities, Healthcare, Entertainment, Shopping, Travel, Education, Income, Other.
-
-Do not invent new categories. If a transaction does not fit any category, use 'Other'.
-
-IMPORTANT: Return ONLY raw JSON with NO markdown code blocks, NO \`\`\`json markers. Return the JSON object directly.`;
+  protected readonly systemPrompt = SHARED_SYSTEM_PROMPT +
+    '\n\nIMPORTANT: Return ONLY raw JSON with NO markdown code blocks, NO ```json markers. Return the JSON object directly.';
 
   constructor() {
     super();
