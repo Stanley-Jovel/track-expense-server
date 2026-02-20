@@ -10,11 +10,11 @@
 | Attribute | Value |
 |-----------|-------|
 | **Current Phase** | 02-category-generation-data-quality |
-| **Current Plan** | 01 (complete) |
-| **Status** | Plan 02-01 complete; Uncategorized enum + generate-categories script implemented |
-| **Progress** | Roadmap: 1/1 complete. Phase 1: 2 plans complete. Phase 2: 1/2 plans complete. |
-| **Last Session** | 2026-02-20T21:10:25Z |
-| **Stopped At** | Completed 02-category-generation-data-quality-01-PLAN.md |
+| **Current Plan** | 02 (complete) |
+| **Status** | Plan 02-02 complete; UUID dedup + category validation + Uncategorized fallback implemented |
+| **Progress** | Roadmap: 1/1 complete. Phase 1: 2 plans complete. Phase 2: 2/2 plans complete. |
+| **Last Session** | 2026-02-20T21:15:05Z |
+| **Stopped At** | Completed 02-category-generation-data-quality-02-PLAN.md |
 
 ## Project State
 
@@ -37,6 +37,7 @@ Phase 4:      ░░░░░░░░░░░░░░░░░░░░   0%
 | Phase 01-llm-provider-integration P01 | 3 min | 2 tasks | 7 files |
 | Phase 01-llm-provider-integration P02 | 3min | 2 tasks | 4 files |
 | Phase 02-category-generation-data-quality P01 | 15min | 2 tasks | 5 files |
+| Phase 02-category-generation-data-quality P02 | 2min | 2 tasks | 4 files |
 
 ## Phase Breakdown
 
@@ -103,7 +104,14 @@ Phase 4:      ░░░░░░░░░░░░░░░░░░░░   0%
     - First-class enum member (not fallback string)
     - Required for Phase 2 Plan 02 Zod validation
 
-12. **generate-categories.ts uses raw OpenAI client** (Phase 02 Plan 01)
+12. **DuplicateRequestError re-thrown before generic SpreadsheetWriteError catch** (Phase 02 Plan 02)
+    - Ensures 409 response flows correctly to route; without re-throw it would be wrapped as 500
+
+13. **InvalidInputError path persists Uncategorized row instead of returning 400** (Phase 02 Plan 02)
+    - Every submitted expense is captured in Sheets even if categorization fails
+    - Fallback uses same requestId making retries idempotent
+
+14. **generate-categories.ts uses raw OpenAI client** (Phase 02 Plan 01)
     - Decoupled from parseTransaction pipeline
     - Different response schema needed for category suggestion task
 

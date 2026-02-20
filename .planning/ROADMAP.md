@@ -8,7 +8,7 @@
 ## Phases
 
 - [x] **Phase 1: LLM Provider Integration** - Switch from ChatGPT to Z.ai GLM-4-Flash with provider abstraction and safety controls (completed 2026-02-20)
-- [ ] **Phase 2: Category Generation & Data Quality** - Generate 12 fixed categories from real data and implement quality controls
+- [x] **Phase 2: Category Generation & Data Quality** - Generate 12 fixed categories from real data and implement quality controls (completed 2026-02-20)
 - [ ] **Phase 3: Analytics API** - Build backend API to expose spending breakdowns by category and time
 - [ ] **Phase 4: Frontend Dashboard** - Create React dashboard with pie chart and trend line visualizations
 
@@ -54,7 +54,7 @@ Plans:
 4. System rejects transactions with unknown/invalid categories and logs which transaction failed categorization (CAT-05)
 5. Transactions that fail LLM categorization are marked "Uncategorized" in Google Sheets instead of being silently dropped from the system (CAT-06)
 
-**Plans:** 2 plans
+**Plans:** 2/2 plans complete
 
 Plans:
 - [ ] 02-01-PLAN.md — Category generation script, getAllTransactions() for Sheets, update EXPENSE_CATEGORIES with Uncategorized, fix system prompt fallback wording
@@ -116,7 +116,7 @@ The following requirements apply throughout all phases and are validated continu
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. LLM Provider Integration | 2/2 | Complete   | 2026-02-20 |
-| 2. Category Generation & Data Quality | 0/2 | Not started | — |
+| 2. Category Generation & Data Quality | 2/2 | Complete   | 2026-02-20 |
 | 3. Analytics API | 0/TBD | Not started | — |
 | 4. Frontend Dashboard | 0/TBD | Not started | — |
 
