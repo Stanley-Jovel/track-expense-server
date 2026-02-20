@@ -28,8 +28,7 @@ export class LLMServiceFactory {
 
   static createWithFallbacks(
     primary: string = 'z-ai',
-    fallback1: string = 'groq',
-    fallback2: string = 'openai'
+    fallback1: string = 'openai'
   ): LLMApiService {
     // Directly instantiate services without reading LLM_PROVIDER env var
     // (unlike create(), which respects the env var for single-provider mode)
@@ -53,8 +52,7 @@ export class LLMServiceFactory {
 
     return new MultiFallbackLLMService(
       createService(primary),
-      createService(fallback1),
-      createService(fallback2)
+      createService(fallback1)
     );
   }
 }
