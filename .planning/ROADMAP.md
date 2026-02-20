@@ -31,7 +31,11 @@
 6. When Z.ai API fails, the system logs the error and verifies the response was not partially persisted to Google Sheets (LLM-06)
 7. System operators can monitor total API spend per transaction and identify if costs exceed budget threshold (LLM-07)
 
-**Plans:** TBD
+**Plans:** 2 plans
+
+Plans:
+- [ ] 01-01-PLAN.md — Z.ai + Deepseek provider services, FallbackLLMService, factory env var routing, input sanitization, cost monitoring
+- [ ] 01-02-PLAN.md — 12-category enum enforcement in Zod schema, hardened system prompts, read-after-write verification, env config + human verify
 
 ---
 
@@ -107,7 +111,7 @@ The following requirements apply throughout all phases and are validated continu
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. LLM Provider Integration | 0/TBD | Not started | — |
+| 1. LLM Provider Integration | 0/2 | Planned | — |
 | 2. Category Generation & Data Quality | 0/TBD | Not started | — |
 | 3. Analytics API | 0/TBD | Not started | — |
 | 4. Frontend Dashboard | 0/TBD | Not started | — |
@@ -122,4 +126,4 @@ The following requirements apply throughout all phases and are validated continu
 ---
 
 *Roadmap created: 2026-02-19*
-*Next step: `/gsd:plan-phase 1` to break Phase 1 into executable plans*
+*Phase 1 planned: 2026-02-19 — 2 plans, 2 waves*
