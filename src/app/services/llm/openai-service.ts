@@ -3,22 +3,32 @@ import { zodResponseFormat } from 'openai/helpers/zod';
 import { z } from 'zod';
 import { LLMApiService, ParsedTransaction, InvalidInputError } from './types';
 
+export const EXPENSE_CATEGORIES = [
+  'Groceries', 'Dining', 'Transportation', 'Housing', 'Utilities',
+  'Healthcare', 'Entertainment', 'Shopping', 'Travel', 'Education',
+  'Income', 'Other'
+] as const;
+export type ExpenseCategory = typeof EXPENSE_CATEGORIES[number];
+
 export const ParsedTransactionsSchema = z.object({
   parsed_transactions: z.array(
     z.object({
       motive: z.string(),
       amount: z.number(),
       type: z.enum(['Income', 'Expense']),
-      category: z.string()
+      category: z.enum(EXPENSE_CATEGORIES)
     }))
 });
 
 export class OpenAIService implements LLMApiService {
   private client: OpenAI;
-  private static SYSTEM_PROMPT = `You are a financial transaction parser. Parse the input text into structured data.
-  The input text may contain one or more transactions.
+  private static SYSTEM_PROMPT = `You are a financial transaction parser. Parse the input text into structured data. The input text may contain one or more transactions.
 
-  For invalid inputs, respond with {"error": "Invalid input format"}.`;
+You MUST categorize each transaction using ONLY one of these exact category values: Groceries, Dining, Transportation, Housing, Utilities, Healthcare, Entertainment, Shopping, Travel, Education, Income, Other.
+
+Do not invent new categories. If a transaction does not fit any category, use 'Other'.
+
+For invalid inputs, respond with {"error": "Invalid input format"}.`;
 
   constructor() {
     const apiKey = process.env.OPENAI_API_KEY;
@@ -73,4 +83,4 @@ export class OpenAIService implements LLMApiService {
       )
     );
   }
-} 
+}
