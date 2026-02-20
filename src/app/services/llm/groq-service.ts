@@ -19,7 +19,7 @@ export class GroqService extends BaseLLMService {
 
   async createCompletion(sanitized: string) {
     return this.client.chat.completions.create({
-      model: 'llama-3.1-70b-versatile',
+      model: 'llama-3.2-90b-vision-preview',
       temperature: 0.05,
       response_format: { type: 'json_object' },
       messages: [
