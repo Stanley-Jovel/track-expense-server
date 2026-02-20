@@ -31,10 +31,30 @@ export class LLMServiceFactory {
     fallback1: string = 'groq',
     fallback2: string = 'openai'
   ): LLMApiService {
+    // Directly instantiate services without reading LLM_PROVIDER env var
+    // (unlike create(), which respects the env var for single-provider mode)
+    const createService = (provider: string): LLMApiService => {
+      switch (provider.toLowerCase()) {
+        case 'z-ai':
+        case 'zai':
+          return new ZAIService();
+        case 'groq':
+          return new GroqService();
+        case 'openai':
+        case 'production':
+          return new OpenAIService();
+        case 'mock':
+        case 'test':
+          return new MockLLMService();
+        default:
+          throw new Error(`Unknown provider: ${provider}`);
+      }
+    };
+
     return new MultiFallbackLLMService(
-      this.create(primary),
-      this.create(fallback1),
-      this.create(fallback2)
+      createService(primary),
+      createService(fallback1),
+      createService(fallback2)
     );
   }
 }
