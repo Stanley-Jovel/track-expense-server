@@ -46,6 +46,24 @@ export class GoogleSheetsService implements SpreadsheetService {
     });
   }
 
+  async getAllTransactions(): Promise<Array<{ timestamp: string; motive: string; amount: string; type: string; category: string }>> {
+    const response = await this.sheets.spreadsheets.values.get({
+      auth: this.auth,
+      spreadsheetId: this.spreadsheetId,
+      range: `${this.sheetNames.transactions}!A:E`,
+    });
+    const rows = response.data.values || [];
+    return rows
+      .filter(row => row.length >= 5 && row[0] !== 'Date' && row[0] !== 'Timestamp')
+      .map(row => ({
+        timestamp: row[0] || '',
+        motive: row[1] || '',
+        amount: row[2] || '',
+        type: row[3] || '',
+        category: row[4] || '',
+      }));
+  }
+
   async appendTransaction(transactions: ParsedTransaction[]): Promise<void> {
     try {
       const currentTimestamp = this.formatDate(new Date());
