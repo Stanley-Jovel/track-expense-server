@@ -1,7 +1,6 @@
 import Groq from 'groq-sdk';
 import { BaseLLMService } from './base-llm-service';
 import { ParsedTransaction, InvalidInputError } from './types';
-import { ParsedTransactionsSchema } from './openai-service';
 
 export class GroqService extends BaseLLMService {
   private client: Groq;

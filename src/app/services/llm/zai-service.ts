@@ -24,7 +24,7 @@ export class ZAIService extends BaseLLMService {
 
   async createCompletion(sanitized: string) {
     return this.client.chat.completions.create({
-      model: 'glm-4-flash',
+      model: 'GLM-4-Flash',
       temperature: 0.05,
       response_format: zodResponseFormat(ParsedTransactionsSchema, 'parsed_transactions'),
       messages: [
