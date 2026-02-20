@@ -5,7 +5,7 @@ export class MockSpreadsheetService implements SpreadsheetService {
   private rows: ParsedTransaction[] = [];
   private shouldFail = false;
 
-  async appendTransaction(data: ParsedTransaction[]): Promise<void> {
+  async appendTransaction(data: ParsedTransaction[], _requestId?: string): Promise<void> {
     if (this.shouldFail) {
       throw new SpreadsheetPermissionError();
     }

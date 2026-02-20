@@ -1,6 +1,6 @@
 import { google } from 'googleapis';
 import { JWT } from 'google-auth-library';
-import { SpreadsheetService, SpreadsheetWriteError, SpreadsheetPermissionError } from './types';
+import { SpreadsheetService, SpreadsheetWriteError, SpreadsheetPermissionError, DuplicateRequestError } from './types';
 import { ParsedTransaction } from '../llm/types';
 
 export class GoogleSheetsService implements SpreadsheetService {
@@ -46,6 +46,16 @@ export class GoogleSheetsService implements SpreadsheetService {
     });
   }
 
+  private async findByRequestId(requestId: string): Promise<boolean> {
+    const response = await this.sheets.spreadsheets.values.get({
+      auth: this.auth,
+      spreadsheetId: this.spreadsheetId,
+      range: `${this.sheetNames.transactions}!F:F`,
+    });
+    const ids = (response.data.values || []).flat();
+    return ids.includes(requestId);
+  }
+
   async getAllTransactions(): Promise<Array<{ timestamp: string; motive: string; amount: string; type: string; category: string }>> {
     const response = await this.sheets.spreadsheets.values.get({
       auth: this.auth,
@@ -64,8 +74,13 @@ export class GoogleSheetsService implements SpreadsheetService {
       }));
   }
 
-  async appendTransaction(transactions: ParsedTransaction[]): Promise<void> {
+  async appendTransaction(transactions: ParsedTransaction[], requestId?: string): Promise<void> {
     try {
+      if (requestId && await this.findByRequestId(requestId)) {
+        console.log(`[SHEETS] Duplicate request ${requestId} detected. Rejecting.`);
+        throw new DuplicateRequestError(requestId);
+      }
+
       const currentTimestamp = this.formatDate(new Date());
 
       const rows = transactions.map(transaction => [
@@ -74,12 +89,13 @@ export class GoogleSheetsService implements SpreadsheetService {
         transaction.amount.toString(),
         transaction.type,
         transaction.category,
+        requestId || '',
       ]);
 
       await this.sheets.spreadsheets.values.append({
         auth: this.auth,
         spreadsheetId: this.spreadsheetId,
-        range: `${this.sheetNames.transactions}!A:E`,
+        range: `${this.sheetNames.transactions}!A:F`,
         valueInputOption: 'USER_ENTERED',
         requestBody: {
           values: rows,
@@ -90,7 +106,7 @@ export class GoogleSheetsService implements SpreadsheetService {
       const readResponse = await this.sheets.spreadsheets.values.get({
         auth: this.auth,
         spreadsheetId: this.spreadsheetId,
-        range: `${this.sheetNames.transactions}!A:E`,
+        range: `${this.sheetNames.transactions}!A:F`,
       });
       const writtenRows = readResponse.data.values || [];
       const lastWrittenRow = writtenRows[writtenRows.length - 1];
@@ -101,8 +117,11 @@ export class GoogleSheetsService implements SpreadsheetService {
         });
         throw new SpreadsheetWriteError('Write verification failed: data may not have been persisted');
       }
-      console.log(`[SHEETS] Write verified: ${rows.length} row(s) appended successfully`);
+      console.log(`[SHEETS] Write verified: ${rows.length} row(s) appended successfully${requestId ? ` (requestId=${requestId})` : ''}`);
     } catch (error: unknown) {
+      if (error instanceof DuplicateRequestError) {
+        throw error;
+      }
       if (error instanceof Error && error.message.includes('permission')) {
         throw new SpreadsheetPermissionError();
       }

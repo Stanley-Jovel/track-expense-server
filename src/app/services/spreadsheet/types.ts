@@ -1,7 +1,7 @@
 import { ParsedTransaction } from '../llm/types';
 
 export interface SpreadsheetService {
-  appendTransaction(data: ParsedTransaction[]): Promise<void>;
+  appendTransaction(data: ParsedTransaction[], requestId?: string): Promise<void>;
 }
 
 export class SpreadsheetWriteError extends Error {
@@ -16,4 +16,11 @@ export class SpreadsheetPermissionError extends SpreadsheetWriteError {
     super('Permission denied');
     this.name = 'SpreadsheetPermissionError';
   }
-} 
+}
+
+export class DuplicateRequestError extends Error {
+  constructor(requestId: string) {
+    super(`Duplicate request: ${requestId}`);
+    this.name = 'DuplicateRequestError';
+  }
+}
