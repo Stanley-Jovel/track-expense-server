@@ -14,12 +14,8 @@ export async function POST(request: Request) {
       );
     }
 
-    const llmService = LLMServiceFactory.create(
-      process.env.NODE_ENV === 'test' ? 'mock' : 'production'
-    );
-    const spreadsheetService = SpreadsheetServiceFactory.create(
-        process.env.NODE_ENV === 'test' ? 'mock' : 'production'
-    );
+    const llmService = LLMServiceFactory.create();
+    const spreadsheetService = SpreadsheetServiceFactory.create();
 
     try {
       const parsedData = await llmService.parseTransaction(transaction);

@@ -8,7 +8,7 @@ export class GoogleSheetsService implements SpreadsheetService {
   private sheets: ReturnType<typeof google.sheets>;
   private spreadsheetId: string;
   private sheetNames = {
-    transactions: 'Transactions',
+    transactions: process.env.GOOGLE_SHEETS_TRANSACTIONS_SHEET_NAME || 'Transactions',
     categories: 'Categories',
   }
 
