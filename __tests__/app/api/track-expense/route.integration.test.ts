@@ -1,6 +1,9 @@
 import { google } from 'googleapis';
 import { JWT } from 'google-auth-library';
 import { POST } from '@/app/api/track-expense/route';
+import { EXPENSE_CATEGORIES } from '@/app/services/llm/types';
+
+const ALLOWED_CATEGORIES: readonly string[] = EXPENSE_CATEGORIES;
 
 const PROVIDER_KEYS = {
   groq: 'GROQ_API_KEY',
@@ -80,6 +83,7 @@ describe('POST /api/track-expense — real LLM pipeline + real Google Sheets (Te
       const row = after[after.length - 1];
       expect(amountIn(row)).toBe(7);
       expect(row[3]).toBe('Expense');
+      expect(ALLOWED_CATEGORIES).toContain(row[4]);
     }
   );
 
@@ -96,6 +100,7 @@ describe('POST /api/track-expense — real LLM pipeline + real Google Sheets (Te
         expect(after.length).toBe(before + 1);
         const row = after[after.length - 1];
         expect(amountIn(row)).toBe(14);
+        expect(ALLOWED_CATEGORIES).toContain(row[4]);
       } finally {
         restore();
       }
@@ -117,6 +122,7 @@ describe('POST /api/track-expense — real LLM pipeline + real Google Sheets (Te
         expect(after.length).toBe(before + 1);
         const row = after[after.length - 1];
         expect(amountIn(row)).toBe(23);
+        expect(ALLOWED_CATEGORIES).toContain(row[4]);
       } finally {
         restore();
       }
@@ -142,6 +148,7 @@ describe('POST /api/track-expense — real LLM pipeline + real Google Sheets (Te
         expect(after.length).toBe(before + 1);
         const row = after[after.length - 1];
         expect(amountIn(row)).toBe(52);
+        expect(ALLOWED_CATEGORIES).toContain(row[4]);
       } finally {
         restore();
       }

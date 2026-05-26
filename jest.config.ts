@@ -8,7 +8,7 @@ const config: Config = {
     '^buffer-equal-constant-time$': '<rootDir>/lib/buffer-equal-constant-time-shim.js',
   },
   setupFiles: ['<rootDir>/jest.setup.ts'],
-  testPathIgnorePatterns: ['/node_modules/', '/.next/'],
+  testPathIgnorePatterns: ['/node_modules/', '/.next/', '/.claude/'],
   testTimeout: 45000,
 };
 
