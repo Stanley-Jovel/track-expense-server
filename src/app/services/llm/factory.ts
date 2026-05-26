@@ -3,12 +3,11 @@ import { createDeepSeek } from '@ai-sdk/deepseek';
 import { createMistral } from '@ai-sdk/mistral';
 import { createOpenAI } from '@ai-sdk/openai';
 import { LLMApiService } from './types';
-import { MockLLMService } from './mock-service';
 import { VercelAIService } from './vercel-ai-service';
 import { FallbackLLMService, NamedLLMService } from './fallback-service';
 
 const DEFAULT_MODELS = {
-  groq: 'llama-3.3-70b-versatile',
+  groq: 'openai/gpt-oss-20b',
   deepseek: 'deepseek-chat',
   mistral: 'open-mistral-nemo',
   openai: 'gpt-4o-mini',
@@ -59,14 +58,7 @@ function buildProductionService(): LLMApiService {
 }
 
 export class LLMServiceFactory {
-  static create(type: 'production' | 'mock' = 'production'): LLMApiService {
-    switch (type) {
-      case 'mock':
-        return new MockLLMService();
-      case 'production':
-        return buildProductionService();
-      default:
-        throw new Error(`Unknown service type: ${type}`);
-    }
+  static create(): LLMApiService {
+    return buildProductionService();
   }
 }
