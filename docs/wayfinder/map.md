@@ -27,6 +27,7 @@ A mobile-first dashboard **shipped** at `/dashboard` in this app (with `/` redir
 - [Transaction read path with caching](tickets/0003-transaction-read-path.md): `getTransactions()` (import from `services/spreadsheet/cached-transactions`, not the index) returns all 662 rows as `Transaction[]` with UTC Dates, 60s cache; `Transaction.category` is a plain string (derive categories from data); turbopack needed its own alias for the Node-25 googleapis shim.
 - [Aggregation layer](tickets/0004-aggregation-layer.md): pure functions in `services/analytics/aggregate.ts` keyed on `DashboardFilter` — stats with previous-month comparison, zero-filled spending series, Spending-only breakdown/top-motives, all-months income-vs-spending; net = income − spending with Money Movement on neither side; all UTC.
 - [Dashboard UI](tickets/0005-dashboard-ui.md): mobile-first `/dashboard` shipped on the branch — period picker (months, full years, all-time) with sibling-stepping arrows, tiles with direction-aware deltas, trend/category/income-vs-spending charts, top spending, searchable transaction list; view state persists in `?w/?t/?c` URL params; `/` redirects to `/dashboard`.
+- [Mobile QA and ship](tickets/0006-mobile-qa-and-ship.md): QA at 375px passed; `/dashboard` made ISR (revalidate 60) so production data stays fresh; merged to main, deployed, verified at https://track-expense-server.vercel.app/dashboard and confirmed by the user on their iPhone. **Destination reached — the map is complete.**
 
 ## Not yet specified
 

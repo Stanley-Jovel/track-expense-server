@@ -1,6 +1,6 @@
 # Mobile QA and ship
 
-status: open
+status: closed
 assignee: claude (this session)
 labels: wayfinder:task
 blocked-by: [Dashboard UI](0005-dashboard-ui.md)
@@ -19,3 +19,7 @@ blocked-by: [Dashboard UI](0005-dashboard-ui.md)
 **Ship:** production build clean; tests 33/34 (the one failure is the pre-existing live-OpenAI "scenario 4" integration test — external key/quota issue, unrelated). Merged `dashboard` into `main` (remote tip was a content-identical merge wrapper of our base) and pushed. Awaiting Vercel deploy verification at track-expense-server.vercel.app/dashboard.
 
 **Deploy verified:** Vercel picked up the push (took ~8 min); https://track-expense-server.vercel.app/dashboard renders live sheet data (July 2026, 1 transaction, all sections present) and `/` redirects to `/dashboard`. Remaining: the user's own check on their iPhone — the HITL tail of this ticket.
+
+## Resolution
+
+User confirmed the dashboard looks good on their iPhone. QA, fixes (ISR revalidate), merge to main, Vercel deploy, and production verification are all recorded above. Shipped at https://track-expense-server.vercel.app/dashboard.
