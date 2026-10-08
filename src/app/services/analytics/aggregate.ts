@@ -3,13 +3,32 @@ import { Transaction } from '../spreadsheet/types';
 // Sheet dates are parsed as UTC wall-clock time (see parse-row.ts), so every
 // month/day bucket here uses UTC accessors to match.
 
-/** "YYYY-MM" in UTC, or 'all' for the whole history. */
+/** "YYYY-MM" in UTC. */
 export type MonthKey = string;
 
+/** The time window a view covers: 'all', a year "YYYY", or a month "YYYY-MM". */
+export type WindowKey = 'all' | string;
+
 export interface DashboardFilter {
-  month: MonthKey | 'all';
+  window: WindowKey;
   type: 'all' | 'Income' | 'Expense';
   category: 'all' | string;
+}
+
+export function isYearKey(key: WindowKey): boolean {
+  return /^\d{4}$/.test(key);
+}
+
+export function inWindow(t: Transaction, window: WindowKey): boolean {
+  if (window === 'all') return true;
+  if (isYearKey(window)) return String(t.date.getUTCFullYear()) === window;
+  return monthKey(t.date) === window;
+}
+
+/** The comparison window: previous month for a month, previous year for a year. */
+export function previousWindowKey(key: WindowKey): WindowKey {
+  if (isYearKey(key)) return String(Number(key) - 1);
+  return previousMonthKey(key);
 }
 
 // See GLOSSARY.md: Money Movement is excluded from Spending.
@@ -41,7 +60,7 @@ export function filterTransactions(
 ): Transaction[] {
   return transactions.filter(
     (t) =>
-      (filter.month === 'all' || monthKey(t.date) === filter.month) &&
+      inWindow(t, filter.window) &&
       (filter.type === 'all' || t.type === filter.type) &&
       (filter.category === 'all' || t.category === filter.category)
   );
@@ -70,10 +89,10 @@ export function computeStats(
   };
 
   let previous: Stats['previous'] = null;
-  if (filter.month !== 'all') {
+  if (filter.window !== 'all') {
     const prev = filterTransactions(transactions, {
       ...filter,
-      month: previousMonthKey(filter.month),
+      window: previousWindowKey(filter.window),
     });
     previous = {
       spending: sum(prev.filter(isSpending)),
@@ -85,26 +104,32 @@ export function computeStats(
 }
 
 export interface TimePoint {
-  /** UTC day of month ("1".."31") for a month window, "YYYY-MM" for all-time. */
+  /** UTC day of month ("1".."31") for a month window, "YYYY-MM" otherwise. */
   label: string;
   amount: number;
 }
 
-/** Spending trend: per-day within a month, per-month for all-time. Gaps are zero-filled. */
+/**
+ * Spending trend: per-day within a month; per-month for a year (all 12,
+ * zero-filled) or all-time (data's month span, gap-filled).
+ */
 export function spendingOverTime(
   transactions: Transaction[],
   filter: DashboardFilter
 ): TimePoint[] {
   const spending = filterTransactions(transactions, filter).filter(isSpending);
 
-  if (filter.month === 'all') {
-    return allMonthKeys(transactions).map((key) => ({
+  if (filter.window === 'all' || isYearKey(filter.window)) {
+    const keys = isYearKey(filter.window)
+      ? Array.from({ length: 12 }, (_, i) => `${filter.window}-${String(i + 1).padStart(2, '0')}`)
+      : allMonthKeys(transactions);
+    return keys.map((key) => ({
       label: key,
       amount: sum(spending.filter((t) => monthKey(t.date) === key)),
     }));
   }
 
-  const [year, month] = filter.month.split('-').map(Number);
+  const [year, month] = filter.window.split('-').map(Number);
   const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
   const byDay = new Array<number>(daysInMonth).fill(0);
   for (const t of spending) {
@@ -196,6 +221,11 @@ export function topMotives(
 /** Distinct categories present in the data, alphabetical. */
 export function allCategories(transactions: Transaction[]): string[] {
   return [...new Set(transactions.map((t) => t.category))].sort();
+}
+
+/** Distinct years present in the data, ascending. */
+export function allYearKeys(transactions: Transaction[]): string[] {
+  return [...new Set(allMonthKeys(transactions).map((k) => k.slice(0, 4)))];
 }
 
 /** Every month between the earliest and latest transaction, ascending, no gaps. */

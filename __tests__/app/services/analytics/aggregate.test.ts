@@ -26,8 +26,8 @@ const tx = (
   ...overrides,
 });
 
-const ALL: DashboardFilter = { month: 'all', type: 'all', category: 'all' };
-const JAN: DashboardFilter = { ...ALL, month: '2026-01' };
+const ALL: DashboardFilter = { window: 'all', type: 'all', category: 'all' };
+const JAN: DashboardFilter = { ...ALL, window: '2026-01' };
 
 describe('month keys', () => {
   it('uses UTC for month bucketing at month boundaries', () => {
@@ -82,7 +82,7 @@ describe('filterTransactions', () => {
   ];
 
   it('filters by month, type, and category together', () => {
-    expect(filterTransactions(data, { month: '2026-02', type: 'Expense', category: 'all' })).toHaveLength(1);
+    expect(filterTransactions(data, { window: '2026-02', type: 'Expense', category: 'all' })).toHaveLength(1);
     expect(filterTransactions(data, { ...ALL, category: 'Travel' })).toHaveLength(1);
     expect(filterTransactions(data, { ...ALL, type: 'Income' })).toHaveLength(1);
     expect(filterTransactions(data, ALL)).toHaveLength(3);
@@ -102,7 +102,7 @@ describe('spendingOverTime', () => {
   });
 
   it('handles leap February', () => {
-    expect(spendingOverTime([tx('2028-02-29T00:00:00Z', 1)], { ...ALL, month: '2028-02' })).toHaveLength(29);
+    expect(spendingOverTime([tx('2028-02-29T00:00:00Z', 1)], { ...ALL, window: '2028-02' })).toHaveLength(29);
   });
 
   it('buckets by month for all-time and excludes money movement', () => {
@@ -173,5 +173,32 @@ describe('allCategories', () => {
     expect(
       allCategories([tx('2026-01-01T00:00:00Z', 1, { category: 'Travel' }), tx('2026-01-02T00:00:00Z', 1)])
     ).toEqual(['Groceries', 'Travel']);
+  });
+});
+
+describe('year windows', () => {
+  const data = [
+    tx('2025-03-10T00:00:00Z', 40),
+    tx('2026-01-05T00:00:00Z', 100),
+    tx('2026-06-05T00:00:00Z', 60),
+    tx('2026-02-01T00:00:00Z', 999, { category: 'Transfers' }),
+    tx('2026-03-01T00:00:00Z', 500, { type: 'Income', category: 'Income' }),
+  ];
+  const Y2026: DashboardFilter = { window: '2026', type: 'all', category: 'all' };
+
+  it('filters by year and compares against the previous year', () => {
+    const stats = computeStats(data, Y2026);
+    expect(stats.spending).toBe(160);
+    expect(stats.income).toBe(500);
+    expect(stats.moneyMovement).toBe(999);
+    expect(stats.previous).toEqual({ spending: 40, income: 0 });
+  });
+
+  it('buckets the trend into all 12 months of the year, zero-filled', () => {
+    const series = spendingOverTime(data, Y2026);
+    expect(series).toHaveLength(12);
+    expect(series[0]).toEqual({ label: '2026-01', amount: 100 });
+    expect(series[5]).toEqual({ label: '2026-06', amount: 60 });
+    expect(series[11]).toEqual({ label: '2026-12', amount: 0 });
   });
 });

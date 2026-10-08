@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -21,12 +22,15 @@ import {
 import { Transaction } from "@/app/services/spreadsheet/types";
 import {
   DashboardFilter,
+  WindowKey,
   allCategories,
   allMonthKeys,
+  allYearKeys,
   categoryBreakdown,
   computeStats,
   filterTransactions,
   incomeVsSpendingByMonth,
+  isYearKey,
   spendingOverTime,
   topMotives,
 } from "@/app/services/analytics/aggregate";
@@ -55,32 +59,59 @@ export function DashboardClient({
     () => allMonthKeys(transactions).reverse(),
     [transactions]
   );
+  const years = useMemo(
+    () => allYearKeys(transactions).reverse(),
+    [transactions]
+  );
   const categories = useMemo(() => allCategories(transactions), [transactions]);
 
-  // Default to the latest month that has data (normally the current month).
-  const [month, setMonth] = useState<string>(months[0] ?? "all");
-  const [type, setType] = useState<DashboardFilter["type"]>("all");
-  const [category, setCategory] = useState<string>("all");
+  // The view persists in the URL so a refresh keeps what was on screen.
+  const searchParams = useSearchParams();
+  const defaultPeriod = months[0] ?? "all"; // latest month with data
+
+  const [period, setPeriod] = useState<WindowKey>(() => {
+    const w = searchParams.get("w");
+    return w && (w === "all" || months.includes(w) || years.includes(w))
+      ? w
+      : defaultPeriod;
+  });
+  const [type, setType] = useState<DashboardFilter["type"]>(() => {
+    const t = searchParams.get("t");
+    return t === "Income" || t === "Expense" ? t : "all";
+  });
+  const [category, setCategory] = useState<string>(() => {
+    const c = searchParams.get("c");
+    return c && categories.includes(c) ? c : "all";
+  });
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<SortOrder>("newest");
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
-  const filter: DashboardFilter = { month, type, category };
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (period !== defaultPeriod) params.set("w", period);
+    if (type !== "all") params.set("t", type);
+    if (category !== "all") params.set("c", category);
+    const query = params.toString();
+    window.history.replaceState(null, "", query ? `?${query}` : location.pathname);
+  }, [period, type, category, defaultPeriod]);
+
+  const filter: DashboardFilter = { window: period, type, category };
 
   const stats = useMemo(
     () => computeStats(transactions, filter),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [transactions, month, type, category]
+    [transactions, period, type, category]
   );
   const trend = useMemo(
     () => spendingOverTime(transactions, filter),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [transactions, month, type, category]
+    [transactions, period, type, category]
   );
   const breakdown = useMemo(
     () => categoryBreakdown(transactions, filter),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [transactions, month, type, category]
+    [transactions, period, type, category]
   );
   const monthly = useMemo(
     () => incomeVsSpendingByMonth(transactions, filter),
@@ -90,7 +121,7 @@ export function DashboardClient({
   const motives = useMemo(
     () => topMotives(transactions, filter, 8),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [transactions, month, type, category]
+    [transactions, period, type, category]
   );
 
   const listed = useMemo(() => {
@@ -108,17 +139,26 @@ export function DashboardClient({
     });
     return sorted;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [transactions, month, type, category, search, sort]);
+  }, [transactions, period, type, category, search, sort]);
 
-  const monthIndex = months.indexOf(month);
-  const stepMonth = (dir: 1 | -1) => {
-    // months[] is newest-first, so "previous month" moves toward the end.
-    const next = months[monthIndex + dir];
-    if (next) {
-      setMonth(next);
-      setVisibleCount(PAGE_SIZE);
-    }
+  // Arrows step through siblings of the current period: months when a month
+  // is selected, years when a year is selected. Lists are newest-first.
+  const siblings = isYearKey(period) ? years : months;
+  const periodIndex = siblings.indexOf(period);
+  const changePeriod = (next: WindowKey) => {
+    setPeriod(next);
+    setVisibleCount(PAGE_SIZE);
   };
+  const stepPeriod = (dir: 1 | -1) => {
+    const next = siblings[periodIndex + dir];
+    if (next) changePeriod(next);
+  };
+  const periodLabel =
+    period === "all"
+      ? "All time"
+      : isYearKey(period)
+        ? period
+        : formatMonthLong(period);
 
   return (
     <main className="mx-auto max-w-5xl space-y-4 p-4 pb-12 sm:p-6">
@@ -129,27 +169,26 @@ export function DashboardClient({
           <Button
             variant="ghost"
             size="icon"
-            aria-label="Previous month"
-            disabled={month === "all" || monthIndex === months.length - 1}
-            onClick={() => stepMonth(1)}
+            aria-label="Previous period"
+            disabled={period === "all" || periodIndex === siblings.length - 1}
+            onClick={() => stepPeriod(1)}
           >
             <ChevronLeft className="h-4 w-4" />
           </Button>
           <Select
-            value={month}
-            onValueChange={(v) => {
-              if (v === null) return;
-              setMonth(v);
-              setVisibleCount(PAGE_SIZE);
-            }}
+            value={period}
+            onValueChange={(v) => v !== null && changePeriod(v)}
           >
-            <SelectTrigger className="w-[150px]" aria-label="Month">
-              <SelectValue>
-                {month === "all" ? "All time" : formatMonthLong(month)}
-              </SelectValue>
+            <SelectTrigger className="w-[150px]" aria-label="Period">
+              <SelectValue>{periodLabel}</SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All time</SelectItem>
+              {years.map((y) => (
+                <SelectItem key={y} value={y}>
+                  {y} — full year
+                </SelectItem>
+              ))}
               {months.map((m) => (
                 <SelectItem key={m} value={m}>
                   {formatMonthLong(m)}
@@ -160,9 +199,9 @@ export function DashboardClient({
           <Button
             variant="ghost"
             size="icon"
-            aria-label="Next month"
-            disabled={month === "all" || monthIndex <= 0}
-            onClick={() => stepMonth(-1)}
+            aria-label="Next period"
+            disabled={period === "all" || periodIndex <= 0}
+            onClick={() => stepPeriod(-1)}
           >
             <ChevronRight className="h-4 w-4" />
           </Button>
@@ -211,12 +250,14 @@ export function DashboardClient({
           value={stats.spending}
           previous={stats.previous?.spending ?? null}
           upIsGood={false}
+          comparison={isYearKey(period) ? "vs last year" : "vs last month"}
         />
         <StatTile
           label="Income"
           value={stats.income}
           previous={stats.previous?.income ?? null}
           upIsGood
+          comparison={isYearKey(period) ? "vs last year" : "vs last month"}
         />
         <StatTile label="Net" value={stats.net} previous={null} upIsGood signed />
         <StatTile
@@ -231,11 +272,15 @@ export function DashboardClient({
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-medium text-muted-foreground">
-            Spending {month === "all" ? "by month" : "by day"}
+            Spending{" "}
+            {period === "all" || isYearKey(period) ? "by month" : "by day"}
           </CardTitle>
         </CardHeader>
         <CardContent className="pl-0 pr-2">
-          <SpendingTrendChart data={trend} isMonthly={month === "all"} />
+          <SpendingTrendChart
+            data={trend}
+            isMonthly={period === "all" || isYearKey(period)}
+          />
         </CardContent>
       </Card>
 
@@ -400,12 +445,14 @@ function StatTile({
   previous,
   upIsGood,
   signed = false,
+  comparison = "vs last month",
 }: {
   label: string;
   value: number;
   previous: number | null;
   upIsGood: boolean;
   signed?: boolean;
+  comparison?: string;
 }) {
   const delta =
     previous !== null && previous > 0
@@ -428,7 +475,7 @@ function StatTile({
               color: deltaGood ? "var(--viz-delta-good)" : "var(--viz-delta-bad)",
             }}
           >
-            {delta >= 0 ? "▲" : "▼"} {Math.abs(delta).toFixed(0)}% vs last month
+            {delta >= 0 ? "▲" : "▼"} {Math.abs(delta).toFixed(0)}% {comparison}
           </p>
         )}
       </CardContent>

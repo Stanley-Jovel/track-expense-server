@@ -1,4 +1,5 @@
 import { Metadata } from "next";
+import { Suspense } from "react";
 import { getTransactions } from "@/app/services/spreadsheet/cached-transactions";
 import { DashboardClient, SerializableTransaction } from "./dashboard-client";
 
@@ -14,5 +15,10 @@ export default async function DashboardPage() {
     date: t.date.toISOString(),
   }));
 
-  return <DashboardClient transactions={serializable} />;
+  return (
+    // useSearchParams in the client component needs a Suspense boundary.
+    <Suspense>
+      <DashboardClient transactions={serializable} />
+    </Suspense>
+  );
 }
