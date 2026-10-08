@@ -1,30 +1,18 @@
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { SmokeChart } from "./smoke-chart";
+import { Metadata } from "next";
 import { getTransactions } from "@/app/services/spreadsheet/cached-transactions";
+import { DashboardClient, SerializableTransaction } from "./dashboard-client";
+
+export const metadata: Metadata = {
+  title: "Expenses",
+  description: "Expense tracking dashboard",
+};
 
 export default async function DashboardPage() {
   const transactions = await getTransactions();
-  return (
-    <main className="mx-auto max-w-5xl space-y-6 p-4 sm:p-6">
-      <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
-      <Card>
-        <CardHeader>
-          <CardTitle>UI stack smoke test</CardTitle>
-          <CardDescription>
-            {transactions.length} transactions loaded from the sheet, latest:{" "}
-            {transactions.at(-1)?.motive ?? "none"}.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <SmokeChart />
-        </CardContent>
-      </Card>
-    </main>
-  );
+  const serializable: SerializableTransaction[] = transactions.map((t) => ({
+    ...t,
+    date: t.date.toISOString(),
+  }));
+
+  return <DashboardClient transactions={serializable} />;
 }

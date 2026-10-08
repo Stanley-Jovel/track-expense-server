@@ -4,6 +4,8 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Un-layered rules beat Tailwind's layered utilities, so keep this block
+   minimal: no resets (preflight covers them) and no fonts (the theme does). */
 html,
 body {
   max-width: 100vw;
@@ -13,23 +15,6 @@ body {
 body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-}
-
-* {
-  box-sizing: border-box;
-  padding: 0;
-  margin: 0;
-}
-
-a {
-  color: inherit;
-  text-decoration: none;
-}
-
-@media (prefers-color-scheme: dark) {
-  html {
-    color-scheme: dark;
-  }
 }
 
 @theme inline {
@@ -74,6 +59,18 @@ a {
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+/* Dashboard data-viz palette (dataviz skill reference instance, light mode).
+   Spending wears blue (categorical slot 1), income aqua (slot 3) — an
+   all-pairs-validated pair. Delta inks are the palette's success/critical. */
+:root {
+  --viz-spending: #2a78d6;
+  --viz-income: #1baf7a;
+  --viz-grid: #e1e0d9;
+  --viz-axis-ink: #898781;
+  --viz-delta-good: #006300;
+  --viz-delta-bad: #d03b3b;
 }
 
 :root {

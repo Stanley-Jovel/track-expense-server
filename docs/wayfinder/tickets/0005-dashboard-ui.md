@@ -1,7 +1,7 @@
 # Dashboard UI
 
 status: open
-assignee:
+assignee: claude (this session)
 labels: wayfinder:task
 blocked-by: [Set up UI stack](0002-set-up-ui-stack.md), [Aggregation layer](0004-aggregation-layer.md)
 
