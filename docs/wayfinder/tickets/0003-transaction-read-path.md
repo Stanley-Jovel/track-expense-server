@@ -1,7 +1,7 @@
 # Transaction read path with caching
 
 status: open
-assignee:
+assignee: claude (this session)
 labels: wayfinder:task
 blocked-by: [Inspect live sheet data shape](0001-inspect-live-sheet-data-shape.md)
 

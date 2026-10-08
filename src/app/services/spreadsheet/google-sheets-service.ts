@@ -1,7 +1,14 @@
 import { google } from 'googleapis';
 import { JWT } from 'google-auth-library';
-import { SpreadsheetService, SpreadsheetWriteError, SpreadsheetPermissionError } from './types';
+import {
+  SpreadsheetService,
+  SpreadsheetWriteError,
+  SpreadsheetPermissionError,
+  SpreadsheetReadError,
+  Transaction,
+} from './types';
 import { ParsedTransaction } from '../llm/types';
+import { parseTransactionRows } from './parse-row';
 
 export class GoogleSheetsService implements SpreadsheetService {
   private auth: JWT;
@@ -72,6 +79,36 @@ export class GoogleSheetsService implements SpreadsheetService {
         throw new SpreadsheetPermissionError();
       }
       throw new SpreadsheetWriteError(
+        error instanceof Error ? error.message : 'Unknown error'
+      );
+    }
+  }
+
+  async readTransactions(): Promise<Transaction[]> {
+    try {
+      // A2 skips the header row. UNFORMATTED_VALUE + SERIAL_NUMBER returns
+      // date serials and plain-number amounts; the FORMATTED date strings in
+      // this sheet come in inconsistent formats and are unsafe to parse.
+      const res = await this.sheets.spreadsheets.values.get({
+        auth: this.auth,
+        spreadsheetId: this.spreadsheetId,
+        range: `${this.sheetNames.transactions}!A2:E`,
+        valueRenderOption: 'UNFORMATTED_VALUE',
+        dateTimeRenderOption: 'SERIAL_NUMBER',
+      });
+
+      const rows = res.data.values ?? [];
+      const { transactions, skippedRowCount } = parseTransactionRows(rows);
+
+      if (skippedRowCount > 0) {
+        console.warn(
+          `readTransactions: skipped ${skippedRowCount} malformed row(s) of ${rows.length}`
+        );
+      }
+
+      return transactions;
+    } catch (error: unknown) {
+      throw new SpreadsheetReadError(
         error instanceof Error ? error.message : 'Unknown error'
       );
     }

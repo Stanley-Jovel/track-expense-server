@@ -9,6 +9,15 @@ const nextConfig: NextConfig = {
     '@ai-sdk/mistral',
     '@ai-sdk/openai',
   ],
+  experimental: {
+    turbo: {
+      // Same shim as the webpack alias below — `next dev --turbopack`
+      // ignores the webpack config.
+      resolveAlias: {
+        'buffer-equal-constant-time': './lib/buffer-equal-constant-time-shim.js',
+      },
+    },
+  },
   webpack: (config) => {
     // buffer-equal-constant-time@1.0.1 (pulled in by google-auth-library via
     // jws → jwa) references the removed Buffer.SlowBuffer at module load,

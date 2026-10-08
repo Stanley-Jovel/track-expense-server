@@ -1,4 +1,4 @@
-import { SpreadsheetService, SpreadsheetPermissionError } from './types';
+import { SpreadsheetService, SpreadsheetPermissionError, Transaction } from './types';
 import { ParsedTransaction } from '../llm/types';
 
 export class MockSpreadsheetService implements SpreadsheetService {
@@ -10,6 +10,13 @@ export class MockSpreadsheetService implements SpreadsheetService {
       throw new SpreadsheetPermissionError();
     }
     this.rows.push(...data);
+  }
+
+  async readTransactions(): Promise<Transaction[]> {
+    if (this.shouldFail) {
+      throw new SpreadsheetPermissionError();
+    }
+    return this.rows.map((row) => ({ ...row, date: new Date() }));
   }
 
   // Test helper methods
