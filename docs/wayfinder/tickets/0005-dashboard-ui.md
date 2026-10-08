@@ -25,3 +25,12 @@ Built and committed on `dashboard` ("Build mobile-first expense dashboard at /da
 - `/` redirects to `/dashboard`; starter page, smoke chart, and `page.module.css` removed.
 - Fixed en route: the starter CSS reset (`* { padding:0; margin:0 }`, Arial body) was un-layered and overrode every Tailwind utility — removed; base-ui `SelectValue` shows raw values, so all triggers render explicit labels; chart colors ride CSS vars (`--viz-*`) defined in globals.
 - Verified in dev at 375×812 and desktop width with live data: July 2026 (sparse), June 2026 (delta up = red), All time, filters, tooltips. Lint and 27 tests clean.
+
+## Progress (iteration 2)
+
+User feedback: missing a by-year aggregate; view resets to the default month on refresh. Both addressed (commit "Add year windows and persist dashboard view in the URL"):
+
+- `DashboardFilter.month` → `DashboardFilter.window: WindowKey` ('all' | 'YYYY' | 'YYYY-MM'). Year windows bucket the trend into all 12 months (zero-filled) and tiles compare "vs last year"; the period picker lists full-year entries above the months, and the arrows step through siblings (months↔months, years↔years). Tests updated + year-window cases (16 analytics tests).
+- Selected period/type/category persist as `?w`/`?t`/`?c` via `history.replaceState`, restored (and validated against the data) on load; `useSearchParams` behind a Suspense boundary. Defaults keep the URL clean.
+- Verified live both directions: `?w=2026` and `?w=2026-06` restore views; stepping updates the URL.
+- Data note: the anomalous ~$100K May/June 2026 figures seen in iteration 1 are gone from the live sheet itself — June now totals $603.54 with plausible rows. Same read path; the sheet's contents changed.
