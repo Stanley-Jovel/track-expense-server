@@ -17,3 +17,5 @@ blocked-by: [Dashboard UI](0005-dashboard-ui.md)
 - Found and fixed pre-ship: `/dashboard` prerendered fully **static**, which would freeze sheet data at build time on Vercel — added `export const revalidate = 60` (ISR confirmed via `initialRevalidateSeconds: 60` in the prerender manifest).
 
 **Ship:** production build clean; tests 33/34 (the one failure is the pre-existing live-OpenAI "scenario 4" integration test — external key/quota issue, unrelated). Merged `dashboard` into `main` (remote tip was a content-identical merge wrapper of our base) and pushed. Awaiting Vercel deploy verification at track-expense-server.vercel.app/dashboard.
+
+**Deploy verified:** Vercel picked up the push (took ~8 min); https://track-expense-server.vercel.app/dashboard renders live sheet data (July 2026, 1 transaction, all sections present) and `/` redirects to `/dashboard`. Remaining: the user's own check on their iPhone — the HITL tail of this ticket.
