@@ -1,7 +1,7 @@
 # Mobile QA and ship
 
 status: open
-assignee:
+assignee: claude (this session)
 labels: wayfinder:task
 blocked-by: [Dashboard UI](0005-dashboard-ui.md)
 

@@ -1,6 +1,6 @@
 # Dashboard UI
 
-status: open
+status: closed
 assignee: claude (this session)
 labels: wayfinder:task
 blocked-by: [Set up UI stack](0002-set-up-ui-stack.md), [Aggregation layer](0004-aggregation-layer.md)
@@ -34,3 +34,7 @@ User feedback: missing a by-year aggregate; view resets to the default month on 
 - Selected period/type/category persist as `?w`/`?t`/`?c` via `history.replaceState`, restored (and validated against the data) on load; `useSearchParams` behind a Suspense boundary. Defaults keep the URL clean.
 - Verified live both directions: `?w=2026` and `?w=2026-06` restore views; stepping updates the URL.
 - Data note: the anomalous ~$100K May/June 2026 figures seen in iteration 1 are gone from the live sheet itself — June now totals $603.54 with plausible rows. Same read path; the sheet's contents changed.
+
+## Resolution
+
+Closed after two iterations. Iteration 1 built the full mobile-first dashboard (see Progress); iteration 2 added year windows and URL-persisted view state on user feedback. User reviewed and proceeded to the next ticket without further changes — treated as approval; final sign-off on a real phone happens in [Mobile QA and ship](0006-mobile-qa-and-ship.md).
