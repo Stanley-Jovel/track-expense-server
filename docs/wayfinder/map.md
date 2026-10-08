@@ -23,6 +23,7 @@ A mobile-first dashboard **shipped** at `/dashboard` in this app (with `/` redir
 <!-- one line per closed ticket: [title](tickets/NNNN-file.md): gist -->
 
 - [Inspect live sheet data shape](tickets/0001-inspect-live-sheet-data-shape.md): 662 clean data rows + header; read with UNFORMATTED_VALUE (date serials + plain number amounts, parse serial as days since 1899-12-30 UTC) — FORMATTED date strings are inconsistent; no Categories sheet exists, derive the 24 categories from column E.
+- [Set up UI stack](tickets/0002-set-up-ui-stack.md): Tailwind v4 + shadcn (base-nova style, base-ui primitives, neutral palette, components in `src/components/ui/`) + Recharts installed and verified on branch `dashboard`; yarn.lock removed (npm is the package manager); note a pre-existing live-LLM integration test failure to revisit before shipping.
 
 ## Not yet specified
 
