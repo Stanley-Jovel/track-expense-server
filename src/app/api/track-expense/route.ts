@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { revalidatePath, revalidateTag } from 'next/cache';
 import { LLMServiceFactory, InvalidInputError } from '@/app/services/llm';
 import { SpreadsheetServiceFactory, SpreadsheetWriteError } from '@/app/services/spreadsheet';
 
@@ -20,6 +21,17 @@ export async function POST(request: Request) {
     try {
       const parsedData = await llmService.parseTransaction(transaction);
       await spreadsheetService.appendTransaction(parsedData);
+
+      // The dashboard caches sheet rows (tagged unstable_cache) and the page
+      // itself (ISR); bust both so the new transaction shows up immediately.
+      try {
+        revalidateTag('sheet-transactions');
+        revalidatePath('/dashboard');
+      } catch {
+        // Outside a Next request context (jest calls the handler directly)
+        // there is no revalidation store; the dashboard then just falls back
+        // to its 60s TTL.
+      }
 
       const summary = parsedData
         .map(t => `${t.type === 'Expense' ? 'Spent' : 'Received'} ${t.amount} for ${t.motive}`)

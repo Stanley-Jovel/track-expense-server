@@ -13,7 +13,9 @@ const readSerialized = unstable_cache(
     return transactions.map((t) => ({ ...t, date: t.date.toISOString() }));
   },
   ['sheet-transactions'],
-  { revalidate: 60 }
+  // The tag lets writers and the dashboard refresh button bust this cache
+  // on demand (revalidateTag) before the 60s TTL expires.
+  { revalidate: 60, tags: ['sheet-transactions'] }
 );
 
 /** All transactions from the sheet, cached for 60 seconds across requests. */
