@@ -2,11 +2,11 @@
 
 labels: `wayfinder:map`
 tickets: [tickets/](tickets/)
-status: open
+status: closed (2026-10-12) — destination reached
 
 ## Destination
 
-A visually distinctive, **spending-focused** dashboard **shipped** at `/dashboard`: a real visual identity + richer visualizations (chosen by prototype), reporting numbers the user can trust — logging pipeline restored and the missing 2026 months backfilled, the income pretense removed (Income/Net/income-vs-spending go away or are reframed), metrics redefined around Spending. Deployed to production and verified on the user's iPhone.
+A visually distinctive, **spending-focused** dashboard **shipped** at `/dashboard`: a real visual identity + richer visualizations (chosen by prototype), reporting numbers the user can trust — logging pipeline restored (backfill ruled out of scope 2026-10-12), the income pretense removed (Income/Net/income-vs-spending go away or are reframed), metrics redefined around Spending. Deployed to production and verified on the user's iPhone.
 
 ## Notes
 
@@ -29,13 +29,22 @@ A visually distinctive, **spending-focused** dashboard **shipped** at `/dashboar
 
 ## Not yet specified
 
-- How charts present residual unlogged periods (gaps as "no data" vs implied-zero) — sharpens after the backfill ticket shows what gaps remain.
+<!-- Map closed; the items below were never needed to reach the destination.
+     They are seeds for a future effort, not open work. -->
+
 - Recurring-charges module — deferred: almost no recurring charges are logged today, so it would render empty; revisit after the 2026 backfill lands.
 - LLM categorization of processor-prefixed motives — a restaurant paid via a POS fintech ("N1co*las Brumas N1co") was filed as Shopping — General because the parser sees processor noise, not the merchant. Possibly teach the parse prompt the Processor*Merchant convention (see `services/analytics/merchant.ts`); existing rows stay untouched per charting.
 
 ## Out of scope
 
+- [Backfill the missing 2026 months](tickets/0002-backfill-missing-months.md) — the user has no access to those transactions and accepts the holes (2026-10-12); the destination was redrawn to drop the backfill. Gaps stay presented as honest zeros.
+- Special "no data" gap markers in charts — moot with the backfill ruled out; the user accepts the current honest-zero presentation.
+
 - Editing existing sheet rows (dedupe, recategorize, redate the Jan backfill, fix the $0 row, reclassify the 2 Income rows) — user ruled the data fine as-is (charting, Q5/Q6).
 - Spike/anomaly detection — spikes are legitimate (charting).
 - Income tracking — user chose a spending-focused dashboard over starting to log income (charting, Q8).
 - Auth, databases, editing transactions from the dashboard — carried from the first map.
+
+---
+
+**Map closed 2026-10-12 — destination reached.** The Ledger is live in production (reviewed by the user, N1co labeling fixed on report), the metric set is spending-focused and trustworthy, and the logging pipeline fires again (card scope fixed). The one route change: the 2026 backfill was ruled out of scope rather than walked.
