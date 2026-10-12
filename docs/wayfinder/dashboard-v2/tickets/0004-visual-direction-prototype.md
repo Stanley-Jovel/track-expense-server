@@ -22,3 +22,7 @@ Prototype on branch `prototype/dashboard-v2` (final commit e2a7f38): three varia
 **A — Ledger wins**: editorial/typographic direction (warm paper, serif numerals, hairline rules, dotted-leader movers, thin two-line pace chart), **augmented with Pulse's statistics** the user wanted carried over: month-elapsed %, last-month total (plus an entries count), shown as a second stat-strip row. B (Pulse, dark glassy) and C (Bento, heatmap grid) rejected as overall directions.
 
 Carries into the build ticket: the Ledger identity with the two-row stat strip, pace chart, movers, category hairline bars, clustered Top merchants, recent-entries ledger. The blend was verified in the prototype (variant A, commit e2a7f38) on a 375px viewport.
+
+### Addendum (user feedback after the verdict)
+
+The Ledger must keep period navigation. Prototyped as serif ‹ › arrows in the header stepping month-by-month (commit c333722): past months render as complete months (hero drops "so far", elapsed 100%, projected = actual), per the metric-set ticket's graceful-degrade rule. Year and all-time views in the Ledger idiom remain for the build ticket, which already carries "keep filters/URL-state".
