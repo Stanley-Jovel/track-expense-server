@@ -1,7 +1,7 @@
 # Visual direction prototype
 
 status: open
-assignee:
+assignee: stanley (claude session, 2026-10-12)
 labels: wayfinder:prototype
 blocked-by: 0003
 

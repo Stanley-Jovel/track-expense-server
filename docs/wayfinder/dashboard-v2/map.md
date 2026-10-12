@@ -22,11 +22,12 @@ A visually distinctive, **spending-focused** dashboard **shipped** at `/dashboar
 
 <!-- one line per closed ticket: [title](tickets/NNNN-file.md): gist -->
 
+- [Define the metric set](tickets/0003-define-the-metric-set.md): tiles = Spending / Daily Average / Projected Spend / To savings & transfers (Income & Net removed); cumulative pace chart replaces income-vs-spending; Biggest movers is the one new module; display-time Merchant clustering is in (sheet untouched). New glossary terms: Merchant, Daily Average, Projected Spend.
+
 ## Not yet specified
 
 - How charts present residual unlogged periods (gaps as "no data" vs implied-zero) — sharpens after the backfill ticket shows what gaps remain.
-- Which new insight modules make the final cut (daily pace, biggest movers vs last month, recurring-charge view, merchant-level grouping…) — sharpens inside the metric-set grilling and the visual prototype.
-- Whether merchant-name clustering at *display* time is wanted for "Top spending" (read-only, no sheet changes) — the user declined data *fixes*; display grouping is a separate call to put to them in the metric-set ticket.
+- Recurring-charges module — deferred: almost no recurring charges are logged today, so it would render empty; revisit after the 2026 backfill lands.
 
 ## Out of scope
 
