@@ -1,7 +1,7 @@
 # Build and ship dashboard v2
 
 status: open
-assignee:
+assignee: stanley (claude session, 2026-10-12)
 labels: wayfinder:task
 blocked-by: 0003, 0004
 
