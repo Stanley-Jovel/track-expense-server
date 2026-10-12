@@ -25,4 +25,4 @@ Carries into the build ticket: the Ledger identity with the two-row stat strip, 
 
 ### Addendum (user feedback after the verdict)
 
-The Ledger must keep period navigation. Prototyped as serif ‹ › arrows in the header stepping month-by-month (commit c333722): past months render as complete months (hero drops "so far", elapsed 100%, projected = actual), per the metric-set ticket's graceful-degrade rule. Year and all-time views in the Ledger idiom remain for the build ticket, which already carries "keep filters/URL-state".
+The Ledger must keep period navigation. Prototyped as serif ‹ › arrows in the header stepping month-by-month (commit c333722): past months render as complete months (hero drops "so far", elapsed 100%, projected = actual), per the metric-set ticket's graceful-degrade rule. A second iteration prototyped the yearly view too (user: "make sure the yearly totals are not lost"): a months/years toggle under the arrows, year-to-date and full-year renderings with all totals kept and the pace chart bucketed by month. Only the all-time view remains for the build ticket, which already carries "keep filters/URL-state".
