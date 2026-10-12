@@ -22,6 +22,7 @@ A visually distinctive, **spending-focused** dashboard **shipped** at `/dashboar
 
 <!-- one line per closed ticket: [title](tickets/NNNN-file.md): gist -->
 
+- [Restore the expense-logging pipeline](tickets/0001-restore-logging-pipeline.md): cause was card scope — the automation watched a card no longer in use; user enabled the current card (2026-10-12). Next real purchase verifies; backfill window ends 2026-10-12.
 - [Build and ship dashboard v2](tickets/0005-build-and-ship.md): shipped as 42b54fe and verified in production — the Ledger live at /dashboard with months/years/all-time navigation, pace chart, movers, Merchant clustering; income-era UI removed.
 - [Visual direction prototype](tickets/0004-visual-direction-prototype.md): A "Ledger" wins (editorial serif/paper), augmented with Pulse's stats (month elapsed %, last month total) as a second stat-strip row; prototype preserved on branch `prototype/dashboard-v2`.
 - [Define the metric set](tickets/0003-define-the-metric-set.md): tiles = Spending / Daily Average / Projected Spend / To savings & transfers (Income & Net removed); cumulative pace chart replaces income-vs-spending; Biggest movers is the one new module; display-time Merchant clustering is in (sheet untouched). New glossary terms: Merchant, Daily Average, Projected Spend.
