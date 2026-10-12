@@ -2,15 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { ChevronLeft, ChevronRight } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -26,15 +17,17 @@ import {
   allCategories,
   allMonthKeys,
   allYearKeys,
+  biggestMovers,
   categoryBreakdown,
-  computeStats,
+  cumulativePace,
   filterTransactions,
-  incomeVsSpendingByMonth,
   isYearKey,
+  paceStats,
   spendingOverTime,
-  topMotives,
+  topMerchants,
 } from "@/app/services/analytics/aggregate";
-import { IncomeVsSpendingChart, SpendingTrendChart } from "./charts";
+import { merchantName } from "@/app/services/analytics/merchant";
+import { MonthlyTrendChart, PaceChart } from "./charts";
 import { formatDay, formatMonthLong, formatUsd } from "./format";
 
 export type SerializableTransaction = Omit<Transaction, "date"> & {
@@ -42,32 +35,31 @@ export type SerializableTransaction = Omit<Transaction, "date"> & {
 };
 
 type SortOrder = "newest" | "oldest" | "largest";
+type PeriodMode = "months" | "years" | "all";
 
 const PAGE_SIZE = 25;
 
 export function DashboardClient({
   transactions: raw,
+  fetchedAt,
 }: {
   transactions: SerializableTransaction[];
+  /** Server render time; the deterministic "now" for pace and projections. */
+  fetchedAt: number;
 }) {
   const transactions = useMemo<Transaction[]>(
     () => raw.map((t) => ({ ...t, date: new Date(t.date) })),
     [raw]
   );
+  const now = useMemo(() => new Date(fetchedAt), [fetchedAt]);
 
-  const months = useMemo(
-    () => allMonthKeys(transactions).reverse(),
-    [transactions]
-  );
-  const years = useMemo(
-    () => allYearKeys(transactions).reverse(),
-    [transactions]
-  );
+  const months = useMemo(() => allMonthKeys(transactions), [transactions]);
+  const years = useMemo(() => allYearKeys(transactions), [transactions]);
   const categories = useMemo(() => allCategories(transactions), [transactions]);
 
   // The view persists in the URL so a refresh keeps what was on screen.
   const searchParams = useSearchParams();
-  const defaultPeriod = months[0] ?? "all"; // latest month with data
+  const defaultPeriod = months[months.length - 1] ?? "all"; // latest month
 
   const [period, setPeriod] = useState<WindowKey>(() => {
     const w = searchParams.get("w");
@@ -96,54 +88,61 @@ export function DashboardClient({
     window.history.replaceState(null, "", query ? `?${query}` : location.pathname);
   }, [period, type, category, defaultPeriod]);
 
-  const filter: DashboardFilter = { window: period, type, category };
+  const filter = useMemo<DashboardFilter>(
+    () => ({ window: period, type, category }),
+    [period, type, category]
+  );
+
+  const mode: PeriodMode =
+    period === "all" ? "all" : isYearKey(period) ? "years" : "months";
+  const yearly = mode === "years";
+  const unit = yearly ? "year" : "month";
 
   const stats = useMemo(
-    () => computeStats(transactions, filter),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [transactions, period, type, category]
+    () => paceStats(transactions, filter, now),
+    [transactions, filter, now]
+  );
+  const pace = useMemo(
+    () => cumulativePace(transactions, filter, now),
+    [transactions, filter, now]
   );
   const trend = useMemo(
-    () => spendingOverTime(transactions, filter),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [transactions, period, type, category]
+    () => (mode === "all" ? spendingOverTime(transactions, filter) : []),
+    [transactions, filter, mode]
+  );
+  const movers = useMemo(
+    () => biggestMovers(transactions, filter, now),
+    [transactions, filter, now]
   );
   const breakdown = useMemo(
     () => categoryBreakdown(transactions, filter),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [transactions, period, type, category]
+    [transactions, filter]
   );
-  const monthly = useMemo(
-    () => incomeVsSpendingByMonth(transactions, filter),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [transactions, category]
-  );
-  const motives = useMemo(
-    () => topMotives(transactions, filter, 8),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [transactions, period, type, category]
+  const merchants = useMemo(
+    () => topMerchants(transactions, filter),
+    [transactions, filter]
   );
 
   const listed = useMemo(() => {
     const needle = search.trim().toLowerCase();
-    const rows = filterTransactions(transactions, filter).filter(
-      (t) =>
-        needle === "" ||
-        t.motive.toLowerCase().includes(needle) ||
-        t.category.toLowerCase().includes(needle)
-    );
-    const sorted = [...rows].sort((a, b) => {
+    const rows = filterTransactions(transactions, filter)
+      .map((t) => ({ ...t, merchant: merchantName(t.motive) }))
+      .filter(
+        (t) =>
+          needle === "" ||
+          t.motive.toLowerCase().includes(needle) ||
+          t.merchant.toLowerCase().includes(needle) ||
+          t.category.toLowerCase().includes(needle)
+      );
+    return rows.sort((a, b) => {
       if (sort === "largest") return b.amount - a.amount;
       const diff = a.date.getTime() - b.date.getTime();
       return sort === "oldest" ? diff : -diff;
     });
-    return sorted;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [transactions, period, type, category, search, sort]);
+  }, [transactions, filter, search, sort]);
 
-  // Arrows step through siblings of the current period: months when a month
-  // is selected, years when a year is selected. Lists are newest-first.
-  const siblings = isYearKey(period) ? years : months;
+  // Arrows step through siblings of the current period, oldest → newest.
+  const siblings = yearly ? years : months;
   const periodIndex = siblings.indexOf(period);
   const changePeriod = (next: WindowKey) => {
     setPeriod(next);
@@ -153,63 +152,177 @@ export function DashboardClient({
     const next = siblings[periodIndex + dir];
     if (next) changePeriod(next);
   };
+  const changeMode = (to: PeriodMode) => {
+    if (to === mode) return;
+    if (to === "all") changePeriod("all");
+    if (to === "years")
+      changePeriod(mode === "months" ? period.slice(0, 4) : years[years.length - 1]);
+    if (to === "months") {
+      const inYear = yearly ? months.filter((m) => m.startsWith(period)) : [];
+      changePeriod(inYear[inYear.length - 1] ?? defaultPeriod);
+    }
+  };
+
+  const { isCurrent, elapsedDays, totalDays } = stats.progress;
   const periodLabel =
-    period === "all"
+    mode === "all"
       ? "All time"
-      : isYearKey(period)
-        ? period
-        : formatMonthLong(period);
+      : yearly
+        ? `${period} — ${isCurrent ? "year to date" : "full year"}`
+        : `${formatMonthLong(period)}${isCurrent ? `, day ${elapsedDays} of ${totalDays}` : ""}`;
+
+  const vsLast =
+    stats.previousAtSamePoint === null
+      ? null
+      : stats.spending - stats.previousAtSamePoint;
+
+  const statStrip: [string, string][][] =
+    mode === "all"
+      ? [
+          [
+            ["Daily average", formatUsd(stats.dailyAverage)],
+            ["To savings & transfers", formatUsd(stats.moneyMovement)],
+            ["Entries", String(stats.entries)],
+          ],
+        ]
+      : [
+          [
+            ["Daily average", formatUsd(stats.dailyAverage)],
+            [`Projected ${unit}`, formatUsd(stats.projected)],
+            [
+              `${yearly ? "Year" : "Month"} elapsed`,
+              `${Math.round((elapsedDays / totalDays) * 100)}%`,
+            ],
+          ],
+          [
+            [`Last ${unit} total`, formatUsd(stats.previousTotal ?? 0)],
+            ["To savings & transfers", formatUsd(stats.moneyMovement)],
+            ["Entries", String(stats.entries)],
+          ],
+        ];
 
   return (
-    <main className="mx-auto max-w-5xl space-y-4 p-4 pb-12 sm:p-6">
-      {/* Header: month navigation */}
-      <div className="flex items-center justify-between gap-2">
-        <h1 className="text-xl font-semibold tracking-tight">Expenses</h1>
-        <div className="flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label="Previous period"
-            disabled={period === "all" || periodIndex === siblings.length - 1}
-            onClick={() => stepPeriod(1)}
+    <main className="mx-auto max-w-2xl px-5 pb-16 sm:px-8">
+      {/* Masthead: period navigation */}
+      <header className="flex items-baseline justify-between pt-2">
+        <h1
+          className="text-xs uppercase tracking-[0.25em]"
+          style={{ color: "var(--ledger-faint)" }}
+        >
+          The Ledger
+        </h1>
+        <div className="flex flex-col items-end gap-1">
+          <div className="flex items-baseline gap-1">
+            <button
+              onClick={() => stepPeriod(-1)}
+              disabled={mode === "all" || periodIndex <= 0}
+              aria-label={`Previous ${unit}`}
+              className="px-1.5 text-sm disabled:opacity-25"
+              style={{ color: "var(--ledger-faint)" }}
+            >
+              ‹
+            </button>
+            <p className="text-xs italic" style={{ color: "var(--ledger-faint)" }}>
+              {periodLabel}
+            </p>
+            <button
+              onClick={() => stepPeriod(1)}
+              disabled={mode === "all" || periodIndex >= siblings.length - 1}
+              aria-label={`Next ${unit}`}
+              className="px-1.5 text-sm disabled:opacity-25"
+              style={{ color: "var(--ledger-faint)" }}
+            >
+              ›
+            </button>
+          </div>
+          <p
+            className="text-[10px] uppercase tracking-[0.2em]"
+            style={{ color: "var(--ledger-faint)" }}
           >
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <Select
-            value={period}
-            onValueChange={(v) => v !== null && changePeriod(v)}
-          >
-            <SelectTrigger className="w-[150px]" aria-label="Period">
-              <SelectValue>{periodLabel}</SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All time</SelectItem>
-              {years.map((y) => (
-                <SelectItem key={y} value={y}>
-                  {y} — full year
-                </SelectItem>
-              ))}
-              {months.map((m) => (
-                <SelectItem key={m} value={m}>
-                  {formatMonthLong(m)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label="Next period"
-            disabled={period === "all" || periodIndex <= 0}
-            onClick={() => stepPeriod(-1)}
-          >
-            <ChevronRight className="h-4 w-4" />
-          </Button>
+            {(["months", "years", "all"] as const).map((m, i) => (
+              <span key={m}>
+                {i > 0 && "·"}
+                <button
+                  onClick={() => changeMode(m)}
+                  className="px-1"
+                  style={{
+                    textDecoration: mode === m ? "underline" : "none",
+                    textUnderlineOffset: 3,
+                  }}
+                >
+                  {m === "all" ? "all time" : m}
+                </button>
+              </span>
+            ))}
+          </p>
         </div>
-      </div>
+      </header>
+
+      {/* Hero figure */}
+      <section className="mt-7 text-center">
+        <p className="text-sm italic" style={{ color: "var(--ledger-faint)" }}>
+          {mode === "all"
+            ? "spent all time"
+            : isCurrent
+              ? `spent so far this ${unit}`
+              : yearly
+                ? `spent in ${period}`
+                : "spent this month"}
+        </p>
+        <p
+          className="mt-1 text-5xl tracking-tight sm:text-6xl"
+          style={{ fontVariantNumeric: "oldstyle-nums" }}
+        >
+          {formatUsd(stats.spending)}
+        </p>
+        {vsLast !== null && (
+          <p
+            className="mt-2 text-sm"
+            style={{
+              color: vsLast > 0 ? "var(--ledger-up)" : "var(--ledger-down)",
+            }}
+          >
+            {vsLast >= 0 ? "▲" : "▼"} {formatUsd(Math.abs(vsLast))}{" "}
+            <span style={{ color: "var(--ledger-faint)" }}>
+              vs. last {unit}
+              {isCurrent ? " at this point" : ""}
+            </span>
+          </p>
+        )}
+      </section>
+
+      {/* Stat strip */}
+      <section
+        className="mt-7 border-y"
+        style={{ borderColor: "var(--ledger-rule)" }}
+      >
+        {statStrip.map((row, i) => (
+          <div
+            key={i}
+            className={`grid grid-cols-3 divide-x py-4 text-center ${i > 0 ? "border-t" : ""}`}
+            style={{ borderColor: "var(--ledger-rule)" }}
+          >
+            {row.map(([label, value]) => (
+              <div
+                key={label}
+                className="px-2"
+                style={{ borderColor: "var(--ledger-rule)" }}
+              >
+                <p className="text-lg sm:text-xl">{value}</p>
+                <p
+                  className="mt-1 text-[11px] uppercase tracking-wider"
+                  style={{ color: "var(--ledger-faint)" }}
+                >
+                  {label}
+                </p>
+              </div>
+            ))}
+          </div>
+        ))}
+      </section>
 
       {/* Filters */}
-      <div className="flex gap-2">
+      <div className="mt-6 flex gap-2">
         <Select
           value={type}
           onValueChange={(v) => v !== null && setType(v as DashboardFilter["type"])}
@@ -243,249 +356,185 @@ export function DashboardClient({
         </Select>
       </div>
 
-      {/* Stat tiles */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatTile
-          label="Spending"
-          value={stats.spending}
-          previous={stats.previous?.spending ?? null}
-          upIsGood={false}
-          comparison={isYearKey(period) ? "vs last year" : "vs last month"}
-        />
-        <StatTile
-          label="Income"
-          value={stats.income}
-          previous={stats.previous?.income ?? null}
-          upIsGood
-          comparison={isYearKey(period) ? "vs last year" : "vs last month"}
-        />
-        <StatTile label="Net" value={stats.net} previous={null} upIsGood signed />
-        <StatTile
-          label="To savings & transfers"
-          value={stats.moneyMovement}
-          previous={null}
-          upIsGood
-        />
+      {/* Pace / trend */}
+      <SectionTitle>
+        {mode === "all" ? "Spending by month" : `Pace — this ${unit} against last`}
+      </SectionTitle>
+      {mode === "all" ? (
+        <MonthlyTrendChart data={trend} />
+      ) : (
+        <PaceChart data={pace} yearly={yearly} />
+      )}
+
+      {/* Movers */}
+      {movers.length > 0 && (
+        <>
+          <SectionTitle>Where it moved</SectionTitle>
+          <div className="space-y-2">
+            {movers.map((m) => (
+              <div
+                key={m.category}
+                className="flex items-baseline justify-between gap-3 text-sm"
+              >
+                <span>{m.category}</span>
+                <span
+                  className="flex-1 border-b border-dotted"
+                  style={{ borderColor: "var(--ledger-rule)" }}
+                />
+                <span
+                  className="tabular-nums"
+                  style={{
+                    color: m.delta > 0 ? "var(--ledger-up)" : "var(--ledger-down)",
+                  }}
+                >
+                  {m.delta >= 0 ? "+" : "−"}
+                  {formatUsd(Math.abs(m.delta))}
+                </span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* Categories */}
+      <SectionTitle>Spending by category</SectionTitle>
+      {breakdown.length === 0 && <EmptyNote />}
+      <div className="space-y-2.5">
+        {breakdown.slice(0, 10).map((c) => {
+          const max = breakdown[0].amount;
+          return (
+            <div key={c.category}>
+              <div className="flex items-baseline justify-between text-sm">
+                <span>{c.category}</span>
+                <span className="tabular-nums">{formatUsd(c.amount)}</span>
+              </div>
+              <div
+                className="mt-1 h-px w-full"
+                style={{ background: "var(--ledger-rule)" }}
+              >
+                <div
+                  style={{
+                    width: `${Math.max((c.amount / max) * 100, 1)}%`,
+                    background: "var(--ledger-ink)",
+                    height: 3,
+                    marginTop: -1,
+                  }}
+                />
+              </div>
+            </div>
+          );
+        })}
       </div>
 
-      {/* Spending trend */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium text-muted-foreground">
-            Spending{" "}
-            {period === "all" || isYearKey(period) ? "by month" : "by day"}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="pl-0 pr-2">
-          <SpendingTrendChart
-            data={trend}
-            isMonthly={period === "all" || isYearKey(period)}
-          />
-        </CardContent>
-      </Card>
-
-      {/* Category breakdown */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium text-muted-foreground">
-            Spending by category
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {breakdown.length === 0 && <EmptyNote />}
-          {breakdown.map((slice) => {
-            const max = breakdown[0].amount;
-            return (
-              <div key={slice.category}>
-                <div className="mb-1 flex items-baseline justify-between gap-2 text-sm">
-                  <span className="truncate">{slice.category}</span>
-                  <span className="shrink-0 font-medium tabular-nums">
-                    {formatUsd(slice.amount)}
-                  </span>
-                </div>
-                <div className="h-2 rounded-full bg-muted">
-                  <div
-                    className="h-2 rounded-full"
-                    style={{
-                      width: `${Math.max((slice.amount / max) * 100, 1)}%`,
-                      background: "var(--viz-spending)",
-                    }}
-                  />
-                </div>
-              </div>
-            );
-          })}
-        </CardContent>
-      </Card>
-
-      {/* Income vs spending */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium text-muted-foreground">
-            Income vs spending — all months
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="pl-0 pr-2">
-          <IncomeVsSpendingChart data={monthly} />
-        </CardContent>
-      </Card>
-
-      {/* Top motives */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium text-muted-foreground">
-            Top spending
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="divide-y">
-          {motives.length === 0 && <EmptyNote />}
-          {motives.map((m) => (
-            <div
-              key={m.motive}
-              className="flex items-baseline justify-between gap-3 py-2 first:pt-0 last:pb-0"
+      {/* Merchants */}
+      <SectionTitle>Top merchants</SectionTitle>
+      {merchants.length === 0 && <EmptyNote />}
+      <div className="space-y-1.5">
+        {merchants.map((m, i) => (
+          <div key={m.merchant} className="flex items-baseline gap-3 text-sm">
+            <span
+              className="w-5 shrink-0 text-right italic"
+              style={{ color: "var(--ledger-faint)" }}
             >
-              <div className="min-w-0">
-                <p className="truncate text-sm">{m.motive}</p>
-                <p className="text-xs text-muted-foreground">
-                  {m.count} transaction{m.count === 1 ? "" : "s"}
-                </p>
-              </div>
-              <span className="shrink-0 text-sm font-medium tabular-nums">
-                {formatUsd(m.amount)}
-              </span>
-            </div>
-          ))}
-        </CardContent>
-      </Card>
-
-      {/* Transactions */}
-      <Card>
-        <CardHeader className="space-y-3 pb-2">
-          <CardTitle className="text-sm font-medium text-muted-foreground">
-            Transactions ({listed.length})
-          </CardTitle>
-          <div className="flex gap-2">
-            <Input
-              placeholder="Search motive or category"
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setVisibleCount(PAGE_SIZE);
-              }}
-              className="flex-1"
-            />
-            <Select
-              value={sort}
-              onValueChange={(v) => v !== null && setSort(v as SortOrder)}
-            >
-              <SelectTrigger className="w-[110px]" aria-label="Sort">
-                <SelectValue>
-                  {sort === "newest" ? "Newest" : sort === "oldest" ? "Oldest" : "Largest"}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="newest">Newest</SelectItem>
-                <SelectItem value="oldest">Oldest</SelectItem>
-                <SelectItem value="largest">Largest</SelectItem>
-              </SelectContent>
-            </Select>
+              {i + 1}.
+            </span>
+            <span className="min-w-0 truncate">{m.merchant}</span>
+            <span className="text-xs italic" style={{ color: "var(--ledger-faint)" }}>
+              ×{m.count}
+            </span>
+            <span className="ml-auto shrink-0 tabular-nums">
+              {formatUsd(m.amount)}
+            </span>
           </div>
-        </CardHeader>
-        <CardContent className="divide-y">
-          {listed.length === 0 && <EmptyNote />}
-          {listed.slice(0, visibleCount).map((t, i) => (
-            <div
-              key={`${t.date.getTime()}-${t.motive}-${i}`}
-              className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0"
+        ))}
+      </div>
+
+      {/* Entries */}
+      <SectionTitle>Entries ({listed.length})</SectionTitle>
+      <div className="mb-3 flex gap-2">
+        <Input
+          placeholder="Search merchant or category"
+          value={search}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            setVisibleCount(PAGE_SIZE);
+          }}
+          className="flex-1"
+        />
+        <Select
+          value={sort}
+          onValueChange={(v) => v !== null && setSort(v as SortOrder)}
+        >
+          <SelectTrigger className="w-[110px]" aria-label="Sort">
+            <SelectValue>
+              {sort === "newest" ? "Newest" : sort === "oldest" ? "Oldest" : "Largest"}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="newest">Newest</SelectItem>
+            <SelectItem value="oldest">Oldest</SelectItem>
+            <SelectItem value="largest">Largest</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      {listed.length === 0 && <EmptyNote />}
+      <div>
+        {listed.slice(0, visibleCount).map((t, i) => (
+          <div
+            key={`${t.date.getTime()}-${t.motive}-${i}`}
+            className="flex items-center justify-between gap-3 border-b py-2.5 last:border-0"
+            style={{ borderColor: "var(--ledger-rule)" }}
+          >
+            <div className="min-w-0">
+              <p className="truncate text-sm" title={t.motive}>
+                {t.merchant}
+              </p>
+              <p className="mt-0.5 text-xs" style={{ color: "var(--ledger-faint)" }}>
+                {t.category} · {formatDay(t.date)}
+              </p>
+            </div>
+            <span
+              className="shrink-0 text-sm tabular-nums"
+              style={
+                t.type === "Income" ? { color: "var(--ledger-down)" } : undefined
+              }
             >
-              <div className="min-w-0">
-                <p className="truncate text-sm">{t.motive}</p>
-                <div className="mt-0.5 flex items-center gap-2">
-                  <Badge variant="secondary" className="max-w-[160px] truncate px-1.5 py-0 text-[11px] font-normal">
-                    {t.category}
-                  </Badge>
-                  <span className="text-xs text-muted-foreground">
-                    {formatDay(t.date)}
-                  </span>
-                </div>
-              </div>
-              <span
-                className="shrink-0 text-sm font-medium tabular-nums"
-                style={
-                  t.type === "Income"
-                    ? { color: "var(--viz-delta-good)" }
-                    : undefined
-                }
-              >
-                {t.type === "Income" ? "+" : "−"}
-                {formatUsd(t.amount)}
-              </span>
-            </div>
-          ))}
-          {listed.length > visibleCount && (
-            <div className="pt-3">
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={() => setVisibleCount((n) => n + PAGE_SIZE)}
-              >
-                Show more ({listed.length - visibleCount} remaining)
-              </Button>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+              {t.type === "Income" ? "+" : "−"}
+              {formatUsd(t.amount)}
+            </span>
+          </div>
+        ))}
+      </div>
+      {listed.length > visibleCount && (
+        <button
+          onClick={() => setVisibleCount((n) => n + PAGE_SIZE)}
+          className="mt-4 w-full border py-2 text-sm italic"
+          style={{
+            borderColor: "var(--ledger-rule)",
+            color: "var(--ledger-faint)",
+          }}
+        >
+          Show more ({listed.length - visibleCount} remaining)
+        </button>
+      )}
     </main>
   );
 }
 
-function StatTile({
-  label,
-  value,
-  previous,
-  upIsGood,
-  signed = false,
-  comparison = "vs last month",
-}: {
-  label: string;
-  value: number;
-  previous: number | null;
-  upIsGood: boolean;
-  signed?: boolean;
-  comparison?: string;
-}) {
-  const delta =
-    previous !== null && previous > 0
-      ? ((value - previous) / previous) * 100
-      : null;
-  const deltaGood = delta !== null && (delta >= 0 ? upIsGood : !upIsGood);
-
+function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
-    <Card className="gap-1 py-4">
-      <CardContent className="space-y-1 px-4">
-        <p className="text-xs text-muted-foreground">{label}</p>
-        <p className="text-lg font-semibold sm:text-xl">
-          {signed && value > 0 ? "+" : ""}
-          {formatUsd(value)}
-        </p>
-        {delta !== null && (
-          <p
-            className="text-xs"
-            style={{
-              color: deltaGood ? "var(--viz-delta-good)" : "var(--viz-delta-bad)",
-            }}
-          >
-            {delta >= 0 ? "▲" : "▼"} {Math.abs(delta).toFixed(0)}% {comparison}
-          </p>
-        )}
-      </CardContent>
-    </Card>
+    <h2
+      className="mb-3 mt-10 border-b pb-1 text-[11px] uppercase tracking-[0.2em]"
+      style={{ color: "var(--ledger-faint)", borderColor: "var(--ledger-rule)" }}
+    >
+      {children}
+    </h2>
   );
 }
 
 function EmptyNote() {
   return (
-    <p className="py-4 text-center text-sm text-muted-foreground">
+    <p className="py-4 text-center text-sm" style={{ color: "var(--ledger-faint)" }}>
       Nothing here for this filter.
     </p>
   );

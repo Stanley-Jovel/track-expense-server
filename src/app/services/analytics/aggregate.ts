@@ -1,4 +1,5 @@
 import { Transaction } from '../spreadsheet/types';
+import { merchantName } from './merchant';
 
 // Sheet dates are parsed as UTC wall-clock time (see parse-row.ts), so every
 // month/day bucket here uses UTC accessors to match.
@@ -66,41 +67,250 @@ export function filterTransactions(
   );
 }
 
-export interface Stats {
-  spending: number;
-  income: number;
-  /** income − spending; Money Movement affects neither side. */
-  net: number;
-  moneyMovement: number;
-  /** Previous-month comparisons; null when the filter is all-time. */
-  previous: { spending: number; income: number } | null;
+export interface PeriodProgress {
+  /** Whether `now` falls inside the window ('all' is always current). */
+  isCurrent: boolean;
+  /** Calendar days elapsed within the window, at least 1. */
+  elapsedDays: number;
+  /** Window length in days; equals elapsedDays for complete windows and 'all'. */
+  totalDays: number;
 }
 
-/** Tile stats for the filtered window. Type/category filters apply. */
-export function computeStats(
-  transactions: Transaction[],
-  filter: DashboardFilter
-): Stats {
-  const current = filterTransactions(transactions, filter);
-  const stats = {
-    spending: sum(current.filter(isSpending)),
-    income: sum(current.filter((t) => t.type === 'Income')),
-    moneyMovement: sum(current.filter(isMoneyMovement)),
-  };
+function daysInMonthOf(key: MonthKey): number {
+  const [year, month] = key.split('-').map(Number);
+  return new Date(Date.UTC(year, month, 0)).getUTCDate();
+}
 
-  let previous: Stats['previous'] = null;
+function utcDayDiff(from: number, to: number): number {
+  return Math.floor((to - from) / 86_400_000);
+}
+
+/** How far through the window `now` is. For 'all', the span of the data. */
+export function periodProgress(
+  transactions: Transaction[],
+  window: WindowKey,
+  now: Date
+): PeriodProgress {
+  if (window === 'all') {
+    const times = transactions.map((t) => t.date.getTime());
+    const days =
+      times.length === 0
+        ? 1
+        : Math.max(1, utcDayDiff(Math.min(...times), now.getTime()) + 1);
+    return { isCurrent: true, elapsedDays: days, totalDays: days };
+  }
+  if (isYearKey(window)) {
+    const year = Number(window);
+    const totalDays = daysInMonthOf(`${window}-02`) === 29 ? 366 : 365;
+    const isCurrent = now.getUTCFullYear() === year;
+    const elapsedDays = isCurrent
+      ? utcDayDiff(Date.UTC(year, 0, 1), now.getTime()) + 1
+      : totalDays;
+    return { isCurrent, elapsedDays, totalDays };
+  }
+  const totalDays = daysInMonthOf(window);
+  const isCurrent = monthKey(now) === window;
+  return {
+    isCurrent,
+    elapsedDays: isCurrent ? now.getUTCDate() : totalDays,
+    totalDays,
+  };
+}
+
+export interface PaceStats {
+  /** Spending in the window (type/category filters apply). */
+  spending: number;
+  moneyMovement: number;
+  /** Spending transaction count in the window. */
+  entries: number;
+  /** Spending ÷ elapsed days — see GLOSSARY.md: Daily Average. */
+  dailyAverage: number;
+  /** Daily Average × window length — see GLOSSARY.md: Projected Spend. */
+  projected: number;
+  /** Previous window's Spending, full and cut to the same elapsed span.
+      Null for 'all', which has no previous window. */
+  previousTotal: number | null;
+  previousAtSamePoint: number | null;
+  progress: PeriodProgress;
+}
+
+/** Spending cut to the first `elapsedDays` days of the window. */
+function spendingToPoint(
+  transactions: Transaction[],
+  filter: DashboardFilter,
+  elapsedDays: number
+): number {
+  const rows = filterTransactions(transactions, filter).filter(isSpending);
+  if (filter.window === 'all') return sum(rows);
+  if (isYearKey(filter.window)) {
+    const start = Date.UTC(Number(filter.window), 0, 1);
+    return sum(rows.filter((t) => utcDayDiff(start, t.date.getTime()) < elapsedDays));
+  }
+  return sum(rows.filter((t) => t.date.getUTCDate() <= elapsedDays));
+}
+
+/** Hero/tile stats for the window, honest about incomplete periods. */
+export function paceStats(
+  transactions: Transaction[],
+  filter: DashboardFilter,
+  now: Date
+): PaceStats {
+  const progress = periodProgress(transactions, filter.window, now);
+  const current = filterTransactions(transactions, filter);
+  const spendingRows = current.filter(isSpending);
+  const spending = sum(spendingRows);
+  const dailyAverage = spending / progress.elapsedDays;
+
+  let previousTotal: number | null = null;
+  let previousAtSamePoint: number | null = null;
   if (filter.window !== 'all') {
-    const prev = filterTransactions(transactions, {
-      ...filter,
-      window: previousWindowKey(filter.window),
-    });
-    previous = {
-      spending: sum(prev.filter(isSpending)),
-      income: sum(prev.filter((t) => t.type === 'Income')),
-    };
+    const prevFilter = { ...filter, window: previousWindowKey(filter.window) };
+    previousTotal = sum(filterTransactions(transactions, prevFilter).filter(isSpending));
+    previousAtSamePoint = progress.isCurrent
+      ? spendingToPoint(transactions, prevFilter, progress.elapsedDays)
+      : previousTotal;
   }
 
-  return { ...stats, net: stats.income - stats.spending, previous };
+  return {
+    spending,
+    moneyMovement: sum(current.filter(isMoneyMovement)),
+    entries: spendingRows.length,
+    dailyAverage,
+    projected: dailyAverage * progress.totalDays,
+    previousTotal,
+    previousAtSamePoint,
+    progress,
+  };
+}
+
+export interface PacePoint {
+  /** Day of month for a month window; month number (1–12) for a year. */
+  unit: number;
+  /** Cumulative Spending; null past `now` in a current window. */
+  current: number | null;
+  previous: number;
+}
+
+/**
+ * Cumulative Spending through the window against the previous window's
+ * cumulative ghost. Month windows bucket by day, year windows by month;
+ * not defined for 'all' (the all-time view uses spendingOverTime).
+ */
+export function cumulativePace(
+  transactions: Transaction[],
+  filter: DashboardFilter,
+  now: Date
+): PacePoint[] {
+  if (filter.window === 'all') return [];
+  const progress = periodProgress(transactions, filter.window, now);
+  const rows = filterTransactions(transactions, filter).filter(isSpending);
+  const prevRows = filterTransactions(transactions, {
+    ...filter,
+    window: previousWindowKey(filter.window),
+  }).filter(isSpending);
+
+  const yearly = isYearKey(filter.window);
+  const units = yearly ? 12 : progress.totalDays;
+  const bucket = (t: Transaction) =>
+    yearly ? t.date.getUTCMonth() : t.date.getUTCDate() - 1;
+  const perUnit = new Array<number>(units).fill(0);
+  for (const t of rows) perUnit[bucket(t)] += t.amount;
+  const prevPerUnit = new Array<number>(yearly ? 12 : 31).fill(0);
+  for (const t of prevRows) prevPerUnit[bucket(t)] += t.amount;
+
+  const lastUnit = !progress.isCurrent
+    ? units
+    : yearly
+      ? now.getUTCMonth() + 1
+      : now.getUTCDate();
+
+  const points: PacePoint[] = [];
+  let current = 0;
+  let previous = 0;
+  for (let u = 1; u <= units; u++) {
+    if (u <= lastUnit) current += perUnit[u - 1];
+    previous += prevPerUnit[u - 1] ?? 0;
+    points.push({ unit: u, current: u <= lastUnit ? current : null, previous });
+  }
+  return points;
+}
+
+export interface CategoryMover {
+  category: string;
+  current: number;
+  previous: number;
+  /** current − previous; positive means more was spent than last window. */
+  delta: number;
+}
+
+/**
+ * Categories whose Spending moved most against the previous window, compared
+ * over the same elapsed span so a half-finished window isn't judged against a
+ * whole one. Empty for 'all'.
+ */
+export function biggestMovers(
+  transactions: Transaction[],
+  filter: DashboardFilter,
+  now: Date,
+  limit = 4
+): CategoryMover[] {
+  if (filter.window === 'all') return [];
+  const progress = periodProgress(transactions, filter.window, now);
+  const prevFilter = { ...filter, window: previousWindowKey(filter.window) };
+
+  const totalsByCategory = (f: DashboardFilter, toPoint: boolean) => {
+    const totals = new Map<string, number>();
+    let rows = filterTransactions(transactions, f).filter(isSpending);
+    if (toPoint && progress.isCurrent) {
+      if (isYearKey(f.window)) {
+        const start = Date.UTC(Number(f.window), 0, 1);
+        rows = rows.filter(
+          (t) => utcDayDiff(start, t.date.getTime()) < progress.elapsedDays
+        );
+      } else {
+        rows = rows.filter((t) => t.date.getUTCDate() <= progress.elapsedDays);
+      }
+    }
+    for (const t of rows) totals.set(t.category, (totals.get(t.category) ?? 0) + t.amount);
+    return totals;
+  };
+
+  const current = totalsByCategory(filter, false);
+  const previous = totalsByCategory(prevFilter, true);
+  return [...new Set([...current.keys(), ...previous.keys()])]
+    .map((category) => {
+      const a = current.get(category) ?? 0;
+      const b = previous.get(category) ?? 0;
+      return { category, current: a, previous: b, delta: a - b };
+    })
+    .sort((x, y) => Math.abs(y.delta) - Math.abs(x.delta))
+    .slice(0, limit);
+}
+
+export interface MerchantTotal {
+  merchant: string;
+  amount: number;
+  count: number;
+}
+
+/** Top Spending by canonical Merchant (clustered motives), largest first. */
+export function topMerchants(
+  transactions: Transaction[],
+  filter: DashboardFilter,
+  limit = 8
+): MerchantTotal[] {
+  const rows = filterTransactions(transactions, filter).filter(isSpending);
+  const byMerchant = new Map<string, MerchantTotal>();
+  for (const t of rows) {
+    const merchant = merchantName(t.motive);
+    const entry = byMerchant.get(merchant) ?? { merchant, amount: 0, count: 0 };
+    entry.amount += t.amount;
+    entry.count += 1;
+    byMerchant.set(merchant, entry);
+  }
+  return [...byMerchant.values()]
+    .sort((a, b) => b.amount - a.amount)
+    .slice(0, limit);
 }
 
 export interface TimePoint {
@@ -162,60 +372,6 @@ export function categoryBreakdown(
     byCategory.set(t.category, slice);
   }
   return [...byCategory.values()].sort((a, b) => b.amount - a.amount);
-}
-
-export interface MonthlyComparison {
-  month: MonthKey;
-  income: number;
-  spending: number;
-}
-
-/**
- * Income vs Spending per month across the whole history (always all-time:
- * this chart is the zoomed-out view, so the month filter does not apply;
- * the category filter applies to the spending side only).
- */
-export function incomeVsSpendingByMonth(
-  transactions: Transaction[],
-  filter: DashboardFilter
-): MonthlyComparison[] {
-  return allMonthKeys(transactions).map((key) => {
-    const inMonth = transactions.filter((t) => monthKey(t.date) === key);
-    return {
-      month: key,
-      income: sum(inMonth.filter((t) => t.type === 'Income')),
-      spending: sum(
-        inMonth
-          .filter(isSpending)
-          .filter((t) => filter.category === 'all' || t.category === filter.category)
-      ),
-    };
-  });
-}
-
-export interface MotiveTotal {
-  motive: string;
-  amount: number;
-  count: number;
-}
-
-/** Top Spending motives by total amount, with transaction counts. */
-export function topMotives(
-  transactions: Transaction[],
-  filter: DashboardFilter,
-  limit = 10
-): MotiveTotal[] {
-  const spending = filterTransactions(transactions, filter).filter(isSpending);
-  const byMotive = new Map<string, MotiveTotal>();
-  for (const t of spending) {
-    const entry = byMotive.get(t.motive) ?? { motive: t.motive, amount: 0, count: 0 };
-    entry.amount += t.amount;
-    entry.count += 1;
-    byMotive.set(t.motive, entry);
-  }
-  return [...byMotive.values()]
-    .sort((a, b) => b.amount - a.amount)
-    .slice(0, limit);
 }
 
 /** Distinct categories present in the data, alphabetical. */

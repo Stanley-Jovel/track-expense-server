@@ -31,9 +31,10 @@ export const EXPENSE_CATEGORIES = [
   // People & Causes
   'Gifts',
   'Donations / Charity',
-  // Money Movement
+  // Money Movement (excluded from dashboard Spending — see GLOSSARY.md)
   'Investments & Savings',
   'Transfers',
+  // Fees are consumed money, so despite the banking flavor this is Spending.
   'Bank & FX Fees',
   // Income
   'Income',

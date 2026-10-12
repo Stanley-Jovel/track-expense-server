@@ -23,12 +23,20 @@ export default async function DashboardPage() {
   const fetchedAt = Date.now();
 
   return (
-    <>
+    // The Ledger identity: paper ground + serif type for the whole page.
+    <div
+      className="min-h-screen"
+      style={{
+        background: "var(--ledger-paper)",
+        color: "var(--ledger-ink)",
+        fontFamily: "var(--font-ledger)",
+      }}
+    >
       <RefreshBar fetchedAt={fetchedAt} />
       {/* useSearchParams in the client component needs a Suspense boundary. */}
       <Suspense>
-        <DashboardClient transactions={serializable} />
+        <DashboardClient transactions={serializable} fetchedAt={fetchedAt} />
       </Suspense>
-    </>
+    </div>
   );
 }

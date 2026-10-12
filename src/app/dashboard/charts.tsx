@@ -1,138 +1,122 @@
 "use client";
 
 import {
-  Area,
-  AreaChart,
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Legend,
+  Line,
+  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
-import {
-  MonthlyComparison,
-  TimePoint,
-} from "@/app/services/analytics/aggregate";
+import { PacePoint, TimePoint } from "@/app/services/analytics/aggregate";
 import { formatMonthShort, formatUsd } from "./format";
 
-const AXIS_TICK = { fill: "var(--viz-axis-ink)", fontSize: 11 } as const;
+const MONTH_ABBR = [
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+];
 
-const tooltipContentStyle = {
-  background: "var(--popover)",
-  border: "1px solid var(--border)",
-  borderRadius: 8,
-  fontSize: 12,
-  color: "var(--popover-foreground)",
+const AXIS_TICK = {
+  fill: "var(--ledger-faint)",
+  fontSize: 11,
+  fontFamily: "var(--font-ledger)",
 } as const;
 
-function compactUsd(value: number): string {
-  return `$${Intl.NumberFormat("en-US", { notation: "compact" }).format(value)}`;
-}
+const TOOLTIP_STYLE = {
+  background: "var(--ledger-card)",
+  border: "1px solid var(--ledger-rule)",
+  borderRadius: 2,
+  fontSize: 12,
+  fontFamily: "var(--font-ledger)",
+  color: "var(--ledger-ink)",
+} as const;
 
-export function SpendingTrendChart({
+/**
+ * Cumulative Spending through the window (solid ink) against the previous
+ * window's cumulative ghost (dotted). Day units for a month, months for a year.
+ */
+export function PaceChart({
   data,
-  isMonthly,
+  yearly,
 }: {
-  data: TimePoint[];
-  isMonthly: boolean;
+  data: PacePoint[];
+  yearly: boolean;
 }) {
   return (
-    <ResponsiveContainer width="100%" height={220}>
-      <AreaChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-        <CartesianGrid stroke="var(--viz-grid)" strokeWidth={1} vertical={false} />
+    <ResponsiveContainer width="100%" height={180}>
+      <LineChart data={data} margin={{ top: 4, right: 4, left: 4, bottom: 0 }}>
         <XAxis
-          dataKey="label"
+          dataKey="unit"
           tick={AXIS_TICK}
           tickLine={false}
-          axisLine={false}
-          interval="preserveStartEnd"
-          minTickGap={24}
-          tickFormatter={(label: string) =>
-            isMonthly ? formatMonthShort(label) : label
+          axisLine={{ stroke: "var(--ledger-rule)" }}
+          interval={yearly ? 0 : "preserveStartEnd"}
+          minTickGap={yearly ? 4 : 32}
+          tickFormatter={(u: number) =>
+            yearly ? MONTH_ABBR[u - 1].slice(0, 1) : String(u)
           }
         />
-        <YAxis
-          tick={AXIS_TICK}
-          tickLine={false}
-          axisLine={false}
-          width={44}
-          tickFormatter={compactUsd}
-        />
+        <YAxis hide />
         <Tooltip
-          contentStyle={tooltipContentStyle}
-          formatter={(value) => [formatUsd(Number(value)), "Spending"]}
-          labelFormatter={(label) =>
-            isMonthly ? formatMonthShort(String(label)) : `Day ${String(label)}`
+          contentStyle={TOOLTIP_STYLE}
+          formatter={(value, name) => [
+            formatUsd(Number(value)),
+            name === "current"
+              ? `This ${yearly ? "year" : "month"}`
+              : `Last ${yearly ? "year" : "month"}`,
+          ]}
+          labelFormatter={(u) =>
+            yearly ? MONTH_ABBR[Number(u) - 1] : `Day ${u}`
           }
         />
-        <Area
+        <Line
           type="monotone"
-          dataKey="amount"
-          stroke="var(--viz-spending)"
-          strokeWidth={2}
-          fill="var(--viz-spending)"
-          fillOpacity={0.1}
-          activeDot={{ r: 4, strokeWidth: 2, stroke: "var(--card)" }}
+          dataKey="previous"
+          stroke="var(--ledger-faint)"
+          strokeWidth={1}
+          strokeDasharray="2 4"
+          dot={false}
         />
-      </AreaChart>
+        <Line
+          type="monotone"
+          dataKey="current"
+          stroke="var(--ledger-ink)"
+          strokeWidth={1.75}
+          dot={false}
+        />
+      </LineChart>
     </ResponsiveContainer>
   );
 }
 
-export function IncomeVsSpendingChart({ data }: { data: MonthlyComparison[] }) {
+/** All-time view: Spending per month as a single thin ink line. */
+export function MonthlyTrendChart({ data }: { data: TimePoint[] }) {
   return (
-    <ResponsiveContainer width="100%" height={220}>
-      <BarChart
-        data={data}
-        margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
-        barGap={2}
-      >
-        <CartesianGrid stroke="var(--viz-grid)" strokeWidth={1} vertical={false} />
+    <ResponsiveContainer width="100%" height={180}>
+      <LineChart data={data} margin={{ top: 4, right: 4, left: 4, bottom: 0 }}>
         <XAxis
-          dataKey="month"
+          dataKey="label"
           tick={AXIS_TICK}
           tickLine={false}
-          axisLine={false}
+          axisLine={{ stroke: "var(--ledger-rule)" }}
           interval="preserveStartEnd"
-          minTickGap={24}
+          minTickGap={28}
           tickFormatter={formatMonthShort}
         />
-        <YAxis
-          tick={AXIS_TICK}
-          tickLine={false}
-          axisLine={false}
-          width={44}
-          tickFormatter={compactUsd}
-        />
+        <YAxis hide />
         <Tooltip
-          contentStyle={tooltipContentStyle}
-          formatter={(value, name) => [formatUsd(Number(value)), String(name)]}
+          contentStyle={TOOLTIP_STYLE}
+          formatter={(value) => [formatUsd(Number(value)), "Spending"]}
           labelFormatter={(label) => formatMonthShort(String(label))}
         />
-        <Legend
-          wrapperStyle={{ fontSize: 12 }}
-          formatter={(value) => (
-            <span style={{ color: "var(--muted-foreground)" }}>{value}</span>
-          )}
+        <Line
+          type="monotone"
+          dataKey="amount"
+          stroke="var(--ledger-ink)"
+          strokeWidth={1.5}
+          dot={false}
         />
-        <Bar
-          dataKey="income"
-          name="Income"
-          fill="var(--viz-income)"
-          radius={[4, 4, 0, 0]}
-          maxBarSize={24}
-        />
-        <Bar
-          dataKey="spending"
-          name="Spending"
-          fill="var(--viz-spending)"
-          radius={[4, 4, 0, 0]}
-          maxBarSize={24}
-        />
-      </BarChart>
+      </LineChart>
     </ResponsiveContainer>
   );
 }
