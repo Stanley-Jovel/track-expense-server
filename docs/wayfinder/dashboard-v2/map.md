@@ -30,6 +30,7 @@ A visually distinctive, **spending-focused** dashboard **shipped** at `/dashboar
 
 - How charts present residual unlogged periods (gaps as "no data" vs implied-zero) — sharpens after the backfill ticket shows what gaps remain.
 - Recurring-charges module — deferred: almost no recurring charges are logged today, so it would render empty; revisit after the 2026 backfill lands.
+- LLM categorization of processor-prefixed motives — a restaurant paid via a POS fintech ("N1co*las Brumas N1co") was filed as Shopping — General because the parser sees processor noise, not the merchant. Possibly teach the parse prompt the Processor*Merchant convention (see `services/analytics/merchant.ts`); existing rows stay untouched per charting.
 
 ## Out of scope
 
