@@ -22,6 +22,7 @@ A visually distinctive, **spending-focused** dashboard **shipped** at `/dashboar
 
 <!-- one line per closed ticket: [title](tickets/NNNN-file.md): gist -->
 
+- [Visual direction prototype](tickets/0004-visual-direction-prototype.md): A "Ledger" wins (editorial serif/paper), augmented with Pulse's stats (month elapsed %, last month total) as a second stat-strip row; prototype preserved on branch `prototype/dashboard-v2`.
 - [Define the metric set](tickets/0003-define-the-metric-set.md): tiles = Spending / Daily Average / Projected Spend / To savings & transfers (Income & Net removed); cumulative pace chart replaces income-vs-spending; Biggest movers is the one new module; display-time Merchant clustering is in (sheet untouched). New glossary terms: Merchant, Daily Average, Projected Spend.
 
 ## Not yet specified
