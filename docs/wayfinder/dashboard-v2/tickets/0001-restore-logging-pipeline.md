@@ -1,7 +1,7 @@
 # Restore the expense-logging pipeline
 
 status: open
-assignee:
+assignee: stanley (claude session, 2026-10-12)
 labels: wayfinder:task (HITL)
 blocked-by: —
 
