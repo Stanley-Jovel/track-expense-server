@@ -1,7 +1,7 @@
 # Backfill the missing 2026 months
 
 status: open
-assignee:
+assignee: stanley (claude session, 2026-10-12)
 labels: wayfinder:task (HITL)
 blocked-by: 0001
 
