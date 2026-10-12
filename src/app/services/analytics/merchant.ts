@@ -23,15 +23,21 @@ const CANONICAL: [RegExp, string][] = [
   [/\bmta\b/i, 'MTA'],
 ];
 
-// Payment-processor prefixes: Square ("SQ *"), Toast ("TST*"), Lightspeed.
-const PROCESSOR_PREFIX = /^(sq|tst|ls)\s?\*\s*/i;
+// Payment processors. Card feeds write "Processor*Merchant" (or "SQ * Merchant"),
+// so the merchant is what FOLLOWS the star — the processor's name is never the
+// merchant. Some POS feeds also echo the processor after the merchant
+// ("N1co*las Brumas N1co"). A star after an UNKNOWN word is left alone: keeping
+// a raw motive intact beats guessing which side of the star the merchant is on.
+const PROCESSORS = ['sq', 'tst', 'ls', 'n1co', 'wompi', 'openpay'];
+const PROCESSOR_PREFIX = new RegExp(`^(${PROCESSORS.join('|')})\\s?\\*\\s*`, 'i');
+// Echoes are only ever seen from the POS fintechs, so the short legacy
+// prefixes (sq/tst/ls) stay out — "ls" is too easy to hit in a real name.
+const PROCESSOR_ECHO_TAIL = /\s+(n1co|wompi|openpay)$/i;
 // Trailing "<City> <ST>" tail, e.g. "H Mart Seattle WA". The city is kept to
 // one word so a merchant name's own last word is never swallowed.
 const CITY_STATE_TAIL = /\s+[a-z.'-]+\s+(wa|or|ca|ny|nj|tx|fl|il)\b.*$/i;
 // Store numbers and whatever follows, e.g. "Fedex Office #736", "Starbucks 20088".
 const STORE_NUMBER_TAIL = /\s+#?\d[\d-]*.*$/;
-// "Brand*reference" suffixes, e.g. "Openpay*keki".
-const STAR_REFERENCE_TAIL = /\*.*$/;
 
 /** Canonical Merchant display name for a raw motive. */
 export function merchantName(motive: string): string {
@@ -41,9 +47,9 @@ export function merchantName(motive: string): string {
 
   let name = motive
     .replace(PROCESSOR_PREFIX, '')
+    .replace(PROCESSOR_ECHO_TAIL, '')
     .replace(CITY_STATE_TAIL, '')
     .replace(STORE_NUMBER_TAIL, '')
-    .replace(STAR_REFERENCE_TAIL, '')
     .trim();
 
   // Over-stripped (e.g. a motive that was only digits): keep the raw motive.

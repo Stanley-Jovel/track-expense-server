@@ -190,6 +190,17 @@ describe('merchantName', () => {
     expect(merchantName('Fedex Office #736')).toBe('FedEx Office');
   });
 
+  it('keeps the merchant, not the processor, from Processor*Merchant motives', () => {
+    expect(merchantName('N1co*las Brumas N1co')).toBe('Las Brumas');
+    expect(merchantName('N1co*gimnasio Vikingo')).toBe('Gimnasio Vikingo');
+    expect(merchantName('Wompi*super Mas')).toBe('Super Mas');
+    expect(merchantName('Openpay*keki Manga')).toBe('Keki Manga');
+  });
+
+  it('leaves a star after an unknown word alone rather than guessing', () => {
+    expect(merchantName('Gera valia*parama')).toBe('Gera valia*parama');
+  });
+
   it('capitalizes manual free-text entries and keeps clean names intact', () => {
     expect(merchantName('groceries')).toBe('Groceries');
     expect(merchantName('Nectar Lounge')).toBe('Nectar Lounge');
