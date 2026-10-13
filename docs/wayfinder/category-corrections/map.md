@@ -92,3 +92,4 @@ Tapping an entry's Category on the dashboard opens a picker. Choosing a Category
 
 <!-- one line per closed ticket -->
 - 0001 (2026-10-12): Correction action + picker shipped on the branch. Row identity is the sheet row number kept at read time. Merchants are compared case-insensitively (`sameMerchant`), because `N1CO*LAS BRUMAS` clusters to "LAS BRUMAS". Ingest (0002) must use the same comparison.
+- 0002 (2026-10-12): Ingest applies overrides after the LLM parse, matching with `merchantName` + `sameMerchant`. An overrides read failure is logged and ingest continues. Overrides holding a Category outside the fixed list are ignored. Tested in a mocked-services route test (`route.overrides.test.ts`), because the real-LLM integration test can't seed overrides without writing the production sheet.
