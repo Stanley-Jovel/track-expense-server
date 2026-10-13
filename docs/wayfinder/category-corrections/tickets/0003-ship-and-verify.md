@@ -18,9 +18,18 @@ Steps 3 and 4 are the user's call to perform: they change real data, or depend o
 
 ## Acceptance criteria
 
-- [ ] Deployed to production from `main`.
-- [ ] Picker verified live at 375px.
+- [x] Deployed to production from `main`.
+- [x] Picker verified live at 375px.
 - [ ] The user has corrected Las Brumas, and the sheet shows the repair.
 - [ ] The map's Decisions section is updated and the map is closed.
 
 ## Resolution
+
+Progress (2026-10-12): shipped as main 290b823. The Vercel production deploy succeeded. Checked live at 375px:
+- Every expense entry has a native picker with a 16px font.
+- The hint reads "Applies to all <Merchant> expenses".
+- The placeholder value is empty, so choosing the current Category still saves.
+- There is no horizontal scroll.
+- Las Brumas still shows Shopping — General, waiting on the user's correction.
+
+Still open: the user corrects Las Brumas on their iPhone and confirms the sheet repair, and the next real purchase from that Merchant arrives correctly categorized.
