@@ -58,3 +58,13 @@ export function merchantName(motive: string): string {
   // Manual entries are often lowercase free text ("groceries", "rent").
   return name.charAt(0).toUpperCase() + name.slice(1);
 }
+
+/**
+ * Whether two Merchant names are the same Merchant for Category Override
+ * purposes. Card feeds vary the casing of one place ("N1co*las Brumas N1co"
+ * vs "N1CO*LAS BRUMAS" → "Las Brumas" / "LAS BRUMAS"), so overrides compare
+ * Merchants case-insensitively.
+ */
+export function sameMerchant(a: string, b: string): boolean {
+  return a.trim().toLowerCase() === b.trim().toLowerCase();
+}

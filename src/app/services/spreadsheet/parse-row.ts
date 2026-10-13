@@ -1,4 +1,4 @@
-import { Transaction } from './types';
+import { SheetTransaction, Transaction } from './types';
 
 // Google Sheets date serials count days since 1899-12-30. The serial carries
 // no timezone (it's the sheet's wall-clock time), so convert in UTC and keep
@@ -33,17 +33,24 @@ export function parseTransactionRow(row: unknown[]): Transaction | null {
   };
 }
 
-export function parseTransactionRows(rows: unknown[][]): {
-  transactions: Transaction[];
+/**
+ * Parse the rows of a read that starts at `firstRow` (A2 → 2). Each parsed
+ * Transaction keeps its sheet row number; skipped rows still occupy theirs.
+ */
+export function parseTransactionRows(
+  rows: unknown[][],
+  firstRow = 2
+): {
+  transactions: SheetTransaction[];
   skippedRowCount: number;
 } {
-  const transactions: Transaction[] = [];
+  const transactions: SheetTransaction[] = [];
   let skippedRowCount = 0;
 
-  for (const row of rows) {
+  for (const [i, row] of rows.entries()) {
     const parsed = parseTransactionRow(row);
     if (parsed) {
-      transactions.push(parsed);
+      transactions.push({ ...parsed, row: firstRow + i });
     } else {
       skippedRowCount++;
     }

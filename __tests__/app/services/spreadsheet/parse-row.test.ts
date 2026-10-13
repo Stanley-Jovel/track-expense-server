@@ -61,4 +61,14 @@ describe('parseTransactionRows', () => {
     expect(skippedRowCount).toBe(1);
     expect(transactions[1].type).toBe('Income');
   });
+
+  it('keeps each row\'s sheet row number, counting skipped rows (A2 is row 2)', () => {
+    const rows = [
+      [45659, 'Safeway', 38.13, 'Expense', 'Groceries'],
+      ['garbage'],
+      [45660, 'Paycheck', 2500, 'Income', 'Income'],
+    ];
+    const { transactions } = parseTransactionRows(rows);
+    expect(transactions.map((t) => t.row)).toEqual([2, 4]);
+  });
 });
