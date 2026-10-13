@@ -28,6 +28,7 @@ import {
 } from "@/app/services/analytics/aggregate";
 import { merchantName } from "@/app/services/analytics/merchant";
 import { MonthlyTrendChart, PaceChart } from "./charts";
+import { EntryCategoryLine } from "./category-picker";
 import { formatDay, formatMonthLong, formatUsd } from "./format";
 
 export type SerializableTransaction = Omit<Transaction, "date"> & {
@@ -489,9 +490,11 @@ export function DashboardClient({
               <p className="truncate text-sm" title={t.motive}>
                 {t.merchant}
               </p>
-              <p className="mt-0.5 text-xs" style={{ color: "var(--ledger-faint)" }}>
-                {t.category} · {formatDay(t.date)}
-              </p>
+              <EntryCategoryLine
+                merchant={t.merchant}
+                category={t.category}
+                dateLabel={formatDay(t.date)}
+              />
             </div>
             <span
               className="shrink-0 text-sm tabular-nums"
