@@ -91,3 +91,4 @@ Tapping an entry's Category on the dashboard opens a picker. Choosing a Category
 ## Decisions so far
 
 <!-- one line per closed ticket -->
+- 0001 (2026-10-12): Correction action + picker shipped on the branch. Row identity is the sheet row number kept at read time. Merchants are compared case-insensitively (`sameMerchant`), because `N1CO*LAS BRUMAS` clusters to "LAS BRUMAS". Ingest (0002) must use the same comparison.
