@@ -1,7 +1,7 @@
 import { POST } from '@/app/api/track-expense/route';
 import { MockSpreadsheetService } from '@/app/services/spreadsheet/mock-service';
 import { SpreadsheetReadError } from '@/app/services/spreadsheet/types';
-import type { ParsedTransaction } from '@/app/services/llm/types';
+import type { ExpenseCategory, ParsedTransaction } from '@/app/services/llm/types';
 
 // Category Overrides at the POST /api/track-expense seam, with mocked LLM and
 // spreadsheet services. The sibling route.integration.test.ts runs a real LLM
@@ -37,7 +37,7 @@ async function writtenCategories(): Promise<[string, string][]> {
   return (await sheet.readTransactions()).map((t) => [t.motive, t.category]);
 }
 
-async function overrideMerchant(merchant: string, category: string) {
+async function overrideMerchant(merchant: string, category: ExpenseCategory) {
   await sheet.upsertCategoryOverride({ merchant, category, updatedAt: '2026-10-12T00:00:00.000Z' });
 }
 
@@ -112,15 +112,19 @@ describe('POST /api/track-expense — Category Overrides', () => {
     expect(logged).toHaveBeenCalled();
   });
 
-  it('ignores a hand-edited override whose Category is outside the fixed list', async () => {
-    await overrideMerchant('Las Brumas', 'Brunch');
+  it('applies overrides only to Expenses, never to Income from the same Merchant', async () => {
+    await overrideMerchant('Las Brumas', 'Dining Out');
     llmParse = [
-      { motive: 'N1co*las Brumas N1co', amount: 12.5, type: 'Expense', category: 'Dining Out' },
+      { motive: 'N1co*las Brumas N1co', amount: 5, type: 'Income', category: 'Income' },
+      { motive: 'N1co*las Brumas N1co', amount: 12.5, type: 'Expense', category: 'Shopping — General' },
     ];
 
-    const { status } = await postExpense('N1co*las Brumas N1co 12.50');
+    const { status } = await postExpense('refund las brumas 5, las brumas 12.50');
 
     expect(status).toBe(200);
-    expect(await writtenCategories()).toEqual([['N1co*las Brumas N1co', 'Dining Out']]);
+    expect(await writtenCategories()).toEqual([
+      ['N1co*las Brumas N1co', 'Income'],
+      ['N1co*las Brumas N1co', 'Dining Out'],
+    ]);
   });
 });

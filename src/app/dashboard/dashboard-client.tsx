@@ -490,11 +490,18 @@ export function DashboardClient({
               <p className="truncate text-sm" title={t.motive}>
                 {t.merchant}
               </p>
-              <EntryCategoryLine
-                merchant={t.merchant}
-                category={t.category}
-                dateLabel={formatDay(t.date)}
-              />
+              {t.type === "Expense" ? (
+                <EntryCategoryLine
+                  merchant={t.merchant}
+                  category={t.category}
+                  dateLabel={formatDay(t.date)}
+                />
+              ) : (
+                // Overrides only recategorize Expenses, so Income has no picker.
+                <p className="mt-0.5 text-xs" style={{ color: "var(--ledger-faint)" }}>
+                  {t.category} · {formatDay(t.date)}
+                </p>
+              )}
             </div>
             <span
               className="shrink-0 text-sm tabular-nums"

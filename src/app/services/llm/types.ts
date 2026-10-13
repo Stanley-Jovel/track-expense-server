@@ -42,6 +42,11 @@ export const EXPENSE_CATEGORIES = [
 
 export type ExpenseCategory = (typeof EXPENSE_CATEGORIES)[number];
 
+/** Whether `category` is one of the fixed EXPENSE_CATEGORIES. */
+export function isExpenseCategory(category: unknown): category is ExpenseCategory {
+  return EXPENSE_CATEGORIES.some((c) => c === category);
+}
+
 export interface ParsedTransaction {
   motive: string;
   amount: number;

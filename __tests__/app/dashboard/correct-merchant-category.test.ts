@@ -1,6 +1,7 @@
 import { revalidatePath, revalidateTag } from 'next/cache';
 import { MockSpreadsheetService } from '@/app/services/spreadsheet/mock-service';
 import { correctMerchantCategory } from '@/app/dashboard/actions';
+import type { ExpenseCategory } from '@/app/services/llm/types';
 
 // The correction action builds its own spreadsheet service through the
 // factory; point that at one in-memory mock the test can seed and inspect.
@@ -15,6 +16,7 @@ jest.mock('next/cache', () => ({
 
 beforeEach(async () => {
   sheet.clear();
+  jest.restoreAllMocks();
   jest.clearAllMocks();
   await sheet.appendTransaction([
     { motive: 'N1co*las Brumas N1co', amount: 18.5, type: 'Expense', category: 'Shopping — General' },
@@ -99,10 +101,63 @@ describe('correctMerchantCategory', () => {
     ]);
   });
 
+  it("leaves the Merchant's Income rows (refunds) alone", async () => {
+    await sheet.appendTransaction([
+      { motive: 'N1co*las Brumas N1co', amount: 5, type: 'Income', category: 'Income' },
+    ]);
+
+    const result = await correctMerchantCategory('Las Brumas', 'Dining Out');
+
+    expect(result).toEqual({ ok: true, repaired: 2 });
+    const refund = (await sheet.readTransactions()).find((t) => t.type === 'Income' && t.amount === 5);
+    expect(refund?.category).toBe('Income');
+  });
+
+  it('records the override even when every row already has that Category', async () => {
+    const result = await correctMerchantCategory("Trader Joe's", 'Groceries');
+
+    expect(result).toEqual({ ok: true, repaired: 0 });
+    expect(await sheet.readCategoryOverrides()).toEqual([
+      { merchant: "Trader Joe's", category: 'Groceries', updatedAt: expect.any(String) },
+    ]);
+  });
+
+  it('says the override was saved when only the history repair failed', async () => {
+    jest.spyOn(sheet, 'rewriteCategories').mockRejectedValueOnce(new Error('quota'));
+    jest.spyOn(console, 'error').mockImplementation(() => {});
+
+    const result = await correctMerchantCategory('Las Brumas', 'Dining Out');
+
+    expect(result).toEqual({
+      ok: false,
+      error: expect.stringContaining('for future expenses'),
+    });
+    expect(await sheet.readCategoryOverrides()).toHaveLength(1);
+
+    // Retrying is idempotent and finishes the repair.
+    expect(await correctMerchantCategory('Las Brumas', 'Dining Out')).toEqual({
+      ok: true,
+      repaired: 2,
+    });
+  });
+
+  it('still reports success when busting the dashboard cache fails', async () => {
+    (revalidateTag as jest.Mock).mockImplementationOnce(() => {
+      throw new Error('no revalidation store');
+    });
+    const logged = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+    const result = await correctMerchantCategory('Las Brumas', 'Dining Out');
+
+    expect(result).toEqual({ ok: true, repaired: 2 });
+    expect(logged).toHaveBeenCalled();
+  });
+
   it('rejects a Category outside the fixed list and changes nothing', async () => {
     const before = await sheet.readTransactions();
 
-    const result = await correctMerchantCategory('Las Brumas', 'Brunch');
+    // The action is a public endpoint, so a forged request can send anything.
+    const result = await correctMerchantCategory('Las Brumas', 'Brunch' as ExpenseCategory);
 
     expect(result).toEqual({ ok: false, error: expect.stringContaining('Brunch') });
     expect(await sheet.readTransactions()).toEqual(before);

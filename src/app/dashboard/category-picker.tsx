@@ -2,10 +2,8 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { EXPENSE_CATEGORIES } from "@/app/services/llm/types";
+import { EXPENSE_CATEGORIES, isExpenseCategory } from "@/app/services/llm/types";
 import { correctMerchantCategory } from "./actions";
-
-const CATEGORIES: readonly string[] = EXPENSE_CATEGORIES;
 
 /**
  * An entry's "Category · date" line, where the Category is a tap target for
@@ -15,6 +13,13 @@ const CATEGORIES: readonly string[] = EXPENSE_CATEGORIES;
  * The <select> is invisible and stretched over the label: tapping the label
  * opens the OS picker directly (the wheel on iOS), while the label keeps the
  * entry's width instead of the select's widest option.
+ *
+ * The select's value is always a disabled, empty placeholder rather than the
+ * entry's Category. A native select (iOS included) fires no `change` when the
+ * already-selected option is picked again, so binding it to the Category
+ * would make "confirm this Category for the whole Merchant" impossible on a
+ * row that is already right. With the placeholder selected, every real
+ * choice is a change.
  */
 export function EntryCategoryLine({
   merchant,
@@ -31,7 +36,7 @@ export function EntryCategoryLine({
   const hint = `Applies to all ${merchant} expenses`;
 
   const save = (next: string) => {
-    if (next === category) return;
+    if (!isExpenseCategory(next)) return;
     setError(null);
     startTransition(async () => {
       try {
@@ -58,19 +63,17 @@ export function EntryCategoryLine({
           <select
             aria-label={`Category for ${merchant}. ${hint}.`}
             title={hint}
-            value={category}
+            value=""
             disabled={pending}
             onChange={(e) => save(e.target.value)}
             // 16px keeps iOS Safari from zooming in when the picker opens.
             className="absolute inset-0 h-full w-full cursor-pointer appearance-none opacity-0 text-base"
           >
+            <option value="" disabled>
+              {category}
+            </option>
             <optgroup label={hint}>
-              {!CATEGORIES.includes(category) && (
-                <option value={category} disabled>
-                  {category}
-                </option>
-              )}
-              {CATEGORIES.map((c) => (
+              {EXPENSE_CATEGORIES.map((c) => (
                 <option key={c} value={c}>
                   {c}
                 </option>

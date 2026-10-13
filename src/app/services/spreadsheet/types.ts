@@ -1,4 +1,4 @@
-import { ParsedTransaction, ExpenseType } from '../llm/types';
+import { ParsedTransaction, ExpenseType, ExpenseCategory } from '../llm/types';
 
 // A transaction read back from the sheet. `category` is a plain string rather
 // than ExpenseCategory: the sheet is the source of truth and may hold values
@@ -21,7 +21,7 @@ export interface SheetTransaction extends Transaction {
 /** Replace the Category cell of one existing sheet row. */
 export interface CategoryRewrite {
   row: number;
-  category: string;
+  category: ExpenseCategory;
 }
 
 /**
@@ -30,7 +30,7 @@ export interface CategoryRewrite {
  */
 export interface CategoryOverride {
   merchant: string;
-  category: string;
+  category: ExpenseCategory;
   /** ISO timestamp of the last save. */
   updatedAt: string;
 }

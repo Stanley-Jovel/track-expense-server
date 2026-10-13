@@ -9,11 +9,21 @@ import {
   CategoryOverride,
   CategoryRewrite,
 } from './types';
-import { ParsedTransaction } from '../llm/types';
+import { ParsedTransaction, isExpenseCategory } from '../llm/types';
 import { parseTransactionRows } from './parse-row';
 import { sameMerchant } from '../analytics/merchant';
 
 const OVERRIDES_HEADER = ['Merchant', 'Category', 'Updated-at'];
+
+/**
+ * The sheet row number of the first row in a values.get response, read from
+ * the A1 range it reports ("Transactions!A2:E700" → 2). Falls back to
+ * `fallback` (the row the request started at) if the range is absent.
+ */
+function firstRowOf(range: string | null | undefined, fallback: number): number {
+  const match = range?.match(/![A-Z]+(\d+)/);
+  return match ? Number(match[1]) : fallback;
+}
 
 export class GoogleSheetsService implements SpreadsheetService {
   private auth: JWT;
@@ -81,12 +91,7 @@ export class GoogleSheetsService implements SpreadsheetService {
         },
       });
     } catch (error: unknown) {
-      if (error instanceof Error && error.message.includes('permission')) {
-        throw new SpreadsheetPermissionError();
-      }
-      throw new SpreadsheetWriteError(
-        error instanceof Error ? error.message : 'Unknown error'
-      );
+      throw this.toWriteError(error);
     }
   }
 
@@ -104,7 +109,10 @@ export class GoogleSheetsService implements SpreadsheetService {
       });
 
       const rows = res.data.values ?? [];
-      const { transactions, skippedRowCount } = parseTransactionRows(rows);
+      const { transactions, skippedRowCount } = parseTransactionRows(
+        rows,
+        firstRowOf(res.data.range, 2)
+      );
 
       if (skippedRowCount > 0) {
         console.warn(
@@ -143,9 +151,11 @@ export class GoogleSheetsService implements SpreadsheetService {
 
   async readCategoryOverrides(): Promise<CategoryOverride[]> {
     try {
-      const rows = await this.readOverrideRows({ createIfMissing: false });
+      const { rows } = await this.readOverrideRows({ createIfMissing: false });
+      // The sheet is hand-editable, so a row may hold a Category the rest of
+      // the app doesn't know; such a row is skipped (the LLM's guess is safer).
       return rows.flatMap(([merchant, category, updatedAt]) =>
-        typeof merchant === 'string' && merchant && typeof category === 'string' && category
+        typeof merchant === 'string' && merchant && isExpenseCategory(category)
           ? [{ merchant, category, updatedAt: String(updatedAt ?? '') }]
           : []
       );
@@ -158,7 +168,7 @@ export class GoogleSheetsService implements SpreadsheetService {
 
   async upsertCategoryOverride(override: CategoryOverride): Promise<void> {
     try {
-      const rows = await this.readOverrideRows({ createIfMissing: true });
+      const { rows, firstRow } = await this.readOverrideRows({ createIfMissing: true });
       const values = [[override.merchant, override.category, override.updatedAt]];
       const index = rows.findIndex(
         ([merchant]) => typeof merchant === 'string' && sameMerchant(merchant, override.merchant)
@@ -173,7 +183,7 @@ export class GoogleSheetsService implements SpreadsheetService {
           requestBody: { values },
         });
       } else {
-        const row = index + 2; // data starts at A2
+        const row = firstRow + index;
         await this.sheets.spreadsheets.values.update({
           auth: this.auth,
           spreadsheetId: this.spreadsheetId,
@@ -187,28 +197,35 @@ export class GoogleSheetsService implements SpreadsheetService {
     }
   }
 
-  // Data rows of the CategoryOverrides sheet. A missing sheet reads as no
-  // overrides; the first upsert creates it (with its header row).
+  // Data rows of the CategoryOverrides sheet, with the sheet row number of
+  // the first one. A missing sheet (checked against the spreadsheet's sheet
+  // titles) reads as no overrides; with createIfMissing it is created, with
+  // its header row, ready for the first upsert.
   private async readOverrideRows({
     createIfMissing,
   }: {
     createIfMissing: boolean;
-  }): Promise<unknown[][]> {
-    try {
-      const res = await this.sheets.spreadsheets.values.get({
-        auth: this.auth,
-        spreadsheetId: this.spreadsheetId,
-        range: `${this.sheetNames.overrides}!A2:C`,
-        valueRenderOption: 'UNFORMATTED_VALUE',
-      });
-      return res.data.values ?? [];
-    } catch (error: unknown) {
-      if (!(error instanceof Error) || !error.message.includes('Unable to parse range')) {
-        throw error;
-      }
+  }): Promise<{ rows: unknown[][]; firstRow: number }> {
+    if (!(await this.hasSheet(this.sheetNames.overrides))) {
       if (createIfMissing) await this.createOverridesSheet();
-      return [];
+      return { rows: [], firstRow: 2 };
     }
+    const res = await this.sheets.spreadsheets.values.get({
+      auth: this.auth,
+      spreadsheetId: this.spreadsheetId,
+      range: `${this.sheetNames.overrides}!A2:C`,
+      valueRenderOption: 'UNFORMATTED_VALUE',
+    });
+    return { rows: res.data.values ?? [], firstRow: firstRowOf(res.data.range, 2) };
+  }
+
+  private async hasSheet(title: string): Promise<boolean> {
+    const res = await this.sheets.spreadsheets.get({
+      auth: this.auth,
+      spreadsheetId: this.spreadsheetId,
+      fields: 'sheets.properties.title',
+    });
+    return (res.data.sheets ?? []).some((sheet) => sheet.properties?.title === title);
   }
 
   private async createOverridesSheet(): Promise<void> {

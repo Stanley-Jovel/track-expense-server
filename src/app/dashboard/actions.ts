@@ -1,11 +1,9 @@
 'use server';
 
 import { revalidatePath, revalidateTag } from 'next/cache';
-import { SpreadsheetServiceFactory } from '@/app/services/spreadsheet/factory';
+import { SpreadsheetServiceFactory } from '@/app/services/spreadsheet';
 import { merchantName, sameMerchant } from '@/app/services/analytics/merchant';
-import { EXPENSE_CATEGORIES } from '@/app/services/llm/types';
-
-const CATEGORIES: readonly string[] = EXPENSE_CATEGORIES;
+import { ExpenseCategory, isExpenseCategory } from '@/app/services/llm/types';
 
 /**
  * Busts both cache layers behind the dashboard — the tagged unstable_cache
@@ -23,18 +21,22 @@ export type CorrectionResult =
 
 /**
  * Correct a Merchant's Category (see GLOSSARY.md: Category Override): save
- * the override, then repair the Category cell of every past row whose Motive
- * clusters to `merchant` and whose Category differs. Only the Category column
- * is ever rewritten. Returns how many rows were repaired.
+ * the override, then repair the Category cell of every past Expense row whose
+ * Motive clusters to `merchant` and whose Category differs. Income rows are
+ * never touched. Only the Category column is ever rewritten. Returns how many
+ * rows were repaired. Safe to retry: a second run saves the same override and
+ * repairs whatever rows are still wrong.
  */
 export async function correctMerchantCategory(
   merchant: string,
-  category: string
+  category: ExpenseCategory
 ): Promise<CorrectionResult> {
-  if (!CATEGORIES.includes(category)) {
+  // A server action is a public endpoint: re-check the closed list at runtime.
+  if (!isExpenseCategory(category)) {
     return { ok: false, error: `"${category}" is not a known Category` };
   }
 
+  let overrideSaved = false;
   try {
     const sheet = SpreadsheetServiceFactory.create();
     await sheet.upsertCategoryOverride({
@@ -42,9 +44,11 @@ export async function correctMerchantCategory(
       category,
       updatedAt: new Date().toISOString(),
     });
+    overrideSaved = true;
 
     const rows = await sheet.readTransactions();
     const rewrites = rows
+      .filter((t) => t.type === 'Expense')
       .filter((t) => sameMerchant(merchantName(t.motive), merchant))
       .filter((t) => t.category !== category)
       .map((t) => ({ row: t.row, category }));
@@ -53,10 +57,20 @@ export async function correctMerchantCategory(
     return { ok: true, repaired: rewrites.length };
   } catch (error) {
     console.error('correctMerchantCategory failed:', error);
-    return { ok: false, error: `Couldn't save ${merchant} as ${category}. Try again.` };
+    return {
+      ok: false,
+      error: overrideSaved
+        ? `Saved ${merchant} as ${category} for future expenses, but past rows couldn't be updated. Try again.`
+        : `Couldn't save ${merchant} as ${category}. Try again.`,
+    };
   } finally {
     // Bust the same caches ingest does, even after a partial failure: the
-    // override or some rows may already have been written.
-    await refreshDashboard();
+    // override or some rows may already have been written. Like ingest, a
+    // revalidation problem is logged and never turns a save into a failure.
+    try {
+      await refreshDashboard();
+    } catch (error) {
+      console.error('correctMerchantCategory: dashboard revalidation failed:', error);
+    }
   }
 }

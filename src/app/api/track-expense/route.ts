@@ -6,32 +6,22 @@ import {
   SpreadsheetWriteError,
   CategoryOverride,
 } from '@/app/services/spreadsheet';
-import {
-  EXPENSE_CATEGORIES,
-  ExpenseCategory,
-  ParsedTransaction,
-} from '@/app/services/llm/types';
+import { ParsedTransaction } from '@/app/services/llm/types';
 import { merchantName, sameMerchant } from '@/app/services/analytics/merchant';
 
-// A Category Override replaces the LLM's Category for every Transaction whose
-// Motive clusters to the overridden Merchant (see GLOSSARY.md).
+// A Category Override replaces the LLM's Category for every Expense whose
+// Motive clusters to the overridden Merchant (see GLOSSARY.md). Income keeps
+// its Category: a refund from a Merchant is still Income.
 function applyCategoryOverrides(
   transactions: ParsedTransaction[],
   overrides: CategoryOverride[]
 ): ParsedTransaction[] {
   return transactions.map((t) => {
+    if (t.type !== 'Expense') return t;
     const merchant = merchantName(t.motive);
     const override = overrides.find((o) => sameMerchant(o.merchant, merchant));
-    // The sheet is hand-editable, so an override may hold a Category the
-    // rest of the app doesn't know; the LLM's guess is safer than that.
-    return override && isExpenseCategory(override.category)
-      ? { ...t, category: override.category }
-      : t;
+    return override ? { ...t, category: override.category } : t;
   });
-}
-
-function isExpenseCategory(category: string): category is ExpenseCategory {
-  return (EXPENSE_CATEGORIES as readonly string[]).includes(category);
 }
 
 export async function POST(request: Request) {
