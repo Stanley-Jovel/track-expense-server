@@ -1,7 +1,38 @@
 import { NextResponse } from 'next/server';
 import { revalidatePath, revalidateTag } from 'next/cache';
 import { LLMServiceFactory, InvalidInputError } from '@/app/services/llm';
-import { SpreadsheetServiceFactory, SpreadsheetWriteError } from '@/app/services/spreadsheet';
+import {
+  SpreadsheetServiceFactory,
+  SpreadsheetWriteError,
+  CategoryOverride,
+} from '@/app/services/spreadsheet';
+import {
+  EXPENSE_CATEGORIES,
+  ExpenseCategory,
+  ParsedTransaction,
+} from '@/app/services/llm/types';
+import { merchantName, sameMerchant } from '@/app/services/analytics/merchant';
+
+// A Category Override replaces the LLM's Category for every Transaction whose
+// Motive clusters to the overridden Merchant (see GLOSSARY.md).
+function applyCategoryOverrides(
+  transactions: ParsedTransaction[],
+  overrides: CategoryOverride[]
+): ParsedTransaction[] {
+  return transactions.map((t) => {
+    const merchant = merchantName(t.motive);
+    const override = overrides.find((o) => sameMerchant(o.merchant, merchant));
+    // The sheet is hand-editable, so an override may hold a Category the
+    // rest of the app doesn't know; the LLM's guess is safer than that.
+    return override && isExpenseCategory(override.category)
+      ? { ...t, category: override.category }
+      : t;
+  });
+}
+
+function isExpenseCategory(category: string): category is ExpenseCategory {
+  return (EXPENSE_CATEGORIES as readonly string[]).includes(category);
+}
 
 export async function POST(request: Request) {
   try {
@@ -19,7 +50,16 @@ export async function POST(request: Request) {
     const spreadsheetService = SpreadsheetServiceFactory.create();
 
     try {
-      const parsedData = await llmService.parseTransaction(transaction);
+      const llmParsed = await llmService.parseTransaction(transaction);
+      // A correction-memory problem must never lose a Transaction: if the
+      // overrides can't be read, log it and keep the LLM's Categories.
+      let overrides: CategoryOverride[] = [];
+      try {
+        overrides = await spreadsheetService.readCategoryOverrides();
+      } catch (error) {
+        console.error('Failed to read Category Overrides; using LLM categories:', error);
+      }
+      const parsedData = applyCategoryOverrides(llmParsed, overrides);
       await spreadsheetService.appendTransaction(parsedData);
 
       // The dashboard caches sheet rows (tagged unstable_cache) and the page
