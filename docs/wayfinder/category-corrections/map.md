@@ -87,6 +87,7 @@ Tapping an entry's Category on the dashboard opens a picker. Choosing a Category
   - Mobile-first is a hard requirement.
   - No database.
   - Consult [GLOSSARY.md](../../../GLOSSARY.md).
+- Code review fixes (2026-10-12): The picker's `<select>` now always shows a disabled placeholder as its value, so choosing the Category a row already has still fires `change` (including on iOS) and saves the override. Overrides apply only to Expenses: history repair skips Income rows, ingest leaves Income Transactions alone, and Income entries show no picker. A failed dashboard revalidation is logged and no longer fails a save. If the override saved but the history rewrite failed, the user sees "Saved … for future expenses, but past rows couldn't be updated. Try again." Retrying is idempotent. A missing CategoryOverrides sheet is detected from the spreadsheet's sheet titles (`spreadsheets.get`), not from error text. Row numbers come from the `range` that `values.get` reports, with A2 as the fallback. `isExpenseCategory` and `ExpenseCategory` now live in `llm/types.ts`, and override and rewrite Categories are typed `ExpenseCategory`. Because of that typing, hand-edited overrides whose Category is outside the list are dropped when the service reads them, not in the route. That case is now tested in the new `google-sheets-service.test.ts`, which runs the real service against a stubbed `sheets` client.
 
 ## Decisions so far
 
