@@ -4,10 +4,10 @@ import { SpreadsheetReadError } from '@/app/services/spreadsheet/types';
 import type { ExpenseCategory, ParsedTransaction } from '@/app/services/llm/types';
 
 // Category Overrides at the POST /api/track-expense seam, with mocked LLM and
-// spreadsheet services. The sibling route.integration.test.ts runs a real LLM
-// against the real sheet, which can't exercise overrides deterministically:
-// the LLM's Motive and Category vary run to run, and seeding an override there
-// would mean writing the production CategoryOverrides sheet.
+// spreadsheet services. A real LLM against the real sheet can't exercise
+// overrides deterministically: the LLM's Motive and Category vary run to run,
+// and seeding an override there would mean writing the production
+// CategoryOverrides sheet.
 
 const sheet = new MockSpreadsheetService();
 jest.mock('@/app/services/spreadsheet/factory', () => ({
