@@ -149,6 +149,22 @@ export class GoogleSheetsService implements SpreadsheetService {
     }
   }
 
+  async rewriteAmount(row: number, amount: number): Promise<void> {
+    try {
+      // Column C is the amount; a single-cell range can't touch any other
+      // column. RAW stores the number as a number, as UNFORMATTED reads expect.
+      await this.sheets.spreadsheets.values.update({
+        auth: this.auth,
+        spreadsheetId: this.spreadsheetId,
+        range: `${this.sheetNames.transactions}!C${row}`,
+        valueInputOption: 'RAW',
+        requestBody: { values: [[amount]] },
+      });
+    } catch (error: unknown) {
+      throw this.toWriteError(error);
+    }
+  }
+
   async readCategoryOverrides(): Promise<CategoryOverride[]> {
     try {
       const { rows } = await this.readOverrideRows({ createIfMissing: false });

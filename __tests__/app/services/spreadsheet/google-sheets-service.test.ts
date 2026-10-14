@@ -64,6 +64,18 @@ describe('rewriteCategories', () => {
   });
 });
 
+describe('rewriteAmount', () => {
+  it('writes only the single amount cell of the row, as a number', async () => {
+    await service.rewriteAmount(42, 1.5);
+
+    expect(api.values.update).toHaveBeenCalledTimes(1);
+    const [req] = api.values.update.mock.calls[0];
+    expect(req.range).toBe(`${TX}!C42`);
+    expect(req.valueInputOption).toBe('RAW');
+    expect(req.requestBody.values).toEqual([[1.5]]);
+  });
+});
+
 describe('readTransactions', () => {
   it('numbers rows from the range the API reports, not an assumed A2', async () => {
     api.values.get.mockResolvedValue({

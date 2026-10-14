@@ -39,11 +39,13 @@ export interface SpreadsheetService {
   appendTransaction(data: ParsedTransaction[]): Promise<void>;
   readTransactions(): Promise<SheetTransaction[]>;
   /**
-   * Rewrite the Category column of the given rows, in one batch. The only
-   * edit the app ever makes to an existing row: every other column stays
-   * append-only.
+   * Rewrite the Category column of the given rows, in one batch. Category
+   * and amount are the only cells the app ever edits on an existing row:
+   * Date, Motive and Type stay append-only.
    */
   rewriteCategories(rewrites: CategoryRewrite[]): Promise<void>;
+  /** Replace the amount cell of one existing sheet row. */
+  rewriteAmount(row: number, amount: number): Promise<void>;
   readCategoryOverrides(): Promise<CategoryOverride[]>;
   /**
    * Save an override, replacing any existing one for the same Merchant

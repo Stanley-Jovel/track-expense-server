@@ -55,10 +55,10 @@ export function previousMonthKey(key: MonthKey): MonthKey {
 
 const sum = (txs: Transaction[]) => txs.reduce((acc, t) => acc + t.amount, 0);
 
-export function filterTransactions(
-  transactions: Transaction[],
+export function filterTransactions<T extends Transaction>(
+  transactions: T[],
   filter: DashboardFilter
-): Transaction[] {
+): T[] {
   return transactions.filter(
     (t) =>
       inWindow(t, filter.window) &&

@@ -74,3 +74,54 @@ export async function correctMerchantCategory(
     }
   }
 }
+
+export type AmountCorrectionResult =
+  | { ok: true; amount: number }
+  | { ok: false; error: string };
+
+/**
+ * Correct the amount of one logged Transaction, e.g. when the parser got it
+ * wrong. Only that row's amount cell is rewritten. `motive` and `previous`
+ * are what the dashboard showed for the row: if the sheet no longer matches
+ * them (the page is stale), nothing is written.
+ */
+export async function correctTransactionAmount(
+  row: number,
+  motive: string,
+  previous: number,
+  amount: number
+): Promise<AmountCorrectionResult> {
+  // A server action is a public endpoint: validate everything at runtime.
+  if (!Number.isInteger(row) || row < 2) {
+    return { ok: false, error: 'Unknown transaction.' };
+  }
+  if (typeof amount !== 'number' || !Number.isFinite(amount) || amount <= 0) {
+    return { ok: false, error: 'Enter an amount greater than $0.' };
+  }
+  const cents = Math.round(amount * 100) / 100;
+
+  let written = false;
+  try {
+    const sheet = SpreadsheetServiceFactory.create();
+    const current = (await sheet.readTransactions()).find((t) => t.row === row);
+    if (!current || current.motive !== motive || current.amount !== previous) {
+      return { ok: false, error: 'This entry changed since the page loaded. Refresh and try again.' };
+    }
+    if (current.amount !== cents) {
+      await sheet.rewriteAmount(row, cents);
+      written = true;
+    }
+    return { ok: true, amount: cents };
+  } catch (error) {
+    console.error('correctTransactionAmount failed:', error);
+    return { ok: false, error: "Couldn't save the amount. Try again." };
+  } finally {
+    if (written) {
+      try {
+        await refreshDashboard();
+      } catch (error) {
+        console.error('correctTransactionAmount: dashboard revalidation failed:', error);
+      }
+    }
+  }
+}

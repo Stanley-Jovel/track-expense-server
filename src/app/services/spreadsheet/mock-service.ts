@@ -37,6 +37,13 @@ export class MockSpreadsheetService implements SpreadsheetService {
     }
   }
 
+  async rewriteAmount(row: number, amount: number): Promise<void> {
+    this.failIfAsked();
+    const target = this.rows[row - 2];
+    if (!target) throw new Error(`No sheet row ${row}`);
+    this.rows[row - 2] = { ...target, amount };
+  }
+
   async readCategoryOverrides(): Promise<CategoryOverride[]> {
     this.failIfAsked();
     return this.overrides.map((o) => ({ ...o }));

@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Transaction } from "@/app/services/spreadsheet/types";
+import { SheetTransaction } from "@/app/services/spreadsheet/types";
 import {
   DashboardFilter,
   WindowKey,
@@ -29,9 +29,10 @@ import {
 import { merchantName } from "@/app/services/analytics/merchant";
 import { MonthlyTrendChart, PaceChart } from "./charts";
 import { EntryCategoryLine } from "./category-picker";
+import { EntryAmount } from "./amount-editor";
 import { formatDay, formatMonthLong, formatUsd } from "./format";
 
-export type SerializableTransaction = Omit<Transaction, "date"> & {
+export type SerializableTransaction = Omit<SheetTransaction, "date"> & {
   date: string;
 };
 
@@ -48,7 +49,7 @@ export function DashboardClient({
   /** Server render time; the deterministic "now" for pace and projections. */
   fetchedAt: number;
 }) {
-  const transactions = useMemo<Transaction[]>(
+  const transactions = useMemo<SheetTransaction[]>(
     () => raw.map((t) => ({ ...t, date: new Date(t.date) })),
     [raw]
   );
@@ -480,9 +481,9 @@ export function DashboardClient({
       </div>
       {listed.length === 0 && <EmptyNote />}
       <div>
-        {listed.slice(0, visibleCount).map((t, i) => (
+        {listed.slice(0, visibleCount).map((t) => (
           <div
-            key={`${t.date.getTime()}-${t.motive}-${i}`}
+            key={t.row}
             className="flex items-center justify-between gap-3 border-b py-2.5 last:border-0"
             style={{ borderColor: "var(--ledger-rule)" }}
           >
@@ -503,15 +504,12 @@ export function DashboardClient({
                 </p>
               )}
             </div>
-            <span
-              className="shrink-0 text-sm tabular-nums"
-              style={
-                t.type === "Income" ? { color: "var(--ledger-down)" } : undefined
-              }
-            >
-              {t.type === "Income" ? "+" : "−"}
-              {formatUsd(t.amount)}
-            </span>
+            <EntryAmount
+              row={t.row}
+              motive={t.motive}
+              amount={t.amount}
+              type={t.type}
+            />
           </div>
         ))}
       </div>

@@ -1,10 +1,10 @@
 import { unstable_cache } from 'next/cache';
 import { SpreadsheetServiceFactory } from './factory';
-import { Transaction } from './types';
+import { SheetTransaction } from './types';
 
 // unstable_cache JSON-serializes its result, so Dates are cached as ISO
 // strings and revived on the way out.
-type SerializedTransaction = Omit<Transaction, 'date'> & { date: string };
+type SerializedTransaction = Omit<SheetTransaction, 'date'> & { date: string };
 
 const readSerialized = unstable_cache(
   async (): Promise<SerializedTransaction[]> => {
@@ -19,7 +19,7 @@ const readSerialized = unstable_cache(
 );
 
 /** All transactions from the sheet, cached for 60 seconds across requests. */
-export async function getTransactions(): Promise<Transaction[]> {
+export async function getTransactions(): Promise<SheetTransaction[]> {
   const serialized = await readSerialized();
   return serialized.map((t) => ({ ...t, date: new Date(t.date) }));
 }
