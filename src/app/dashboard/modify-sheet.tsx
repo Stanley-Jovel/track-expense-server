@@ -88,6 +88,9 @@ export function ModifySheet({
     <Sheet open onOpenChange={(open) => !open && !pending && onClose()}>
       <SheetContent
         side="bottom"
+        // Returning focus to the tray's Modify button would swipe the entry
+        // open again (the tray opens on focus), so leave focus where it is.
+        finalFocus={false}
         className="mx-auto max-w-2xl rounded-t-xl px-5 pb-8 pt-5"
         style={{
           background: "var(--ledger-card)",
