@@ -18,6 +18,17 @@ export interface SheetTransaction extends Transaction {
   row: number;
 }
 
+/**
+ * The cells of one existing sheet row that Modify can rewrite: everything
+ * except Type.
+ */
+export interface TransactionRewrite {
+  date: Date;
+  motive: string;
+  amount: number;
+  category: string;
+}
+
 /** Replace the Category cell of one existing sheet row. */
 export interface CategoryRewrite {
   row: number;
@@ -39,13 +50,14 @@ export interface SpreadsheetService {
   appendTransaction(data: ParsedTransaction[]): Promise<void>;
   readTransactions(): Promise<SheetTransaction[]>;
   /**
-   * Rewrite the Category column of the given rows, in one batch. Category
-   * and amount are the only cells the app ever edits on an existing row:
-   * Date, Motive and Type stay append-only.
+   * Rewrite the Category column of the given rows, in one batch.
    */
   rewriteCategories(rewrites: CategoryRewrite[]): Promise<void>;
-  /** Replace the amount cell of one existing sheet row. */
-  rewriteAmount(row: number, amount: number): Promise<void>;
+  /**
+   * Replace the Date, Motive, amount and Category cells of one existing
+   * sheet row (Modify). Type is never rewritten.
+   */
+  rewriteTransaction(row: number, rewrite: TransactionRewrite): Promise<void>;
   /** Remove one sheet row entirely; later rows shift up by one. */
   deleteTransactionRow(row: number): Promise<void>;
   readCategoryOverrides(): Promise<CategoryOverride[]>;

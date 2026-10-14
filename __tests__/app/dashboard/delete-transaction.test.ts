@@ -1,6 +1,6 @@
 import { revalidatePath, revalidateTag } from 'next/cache';
 import { MockSpreadsheetService } from '@/app/services/spreadsheet/mock-service';
-import { correctTransactionAmount, deleteTransaction } from '@/app/dashboard/actions';
+import { deleteTransaction, modifyTransaction } from '@/app/dashboard/actions';
 
 const sheet = new MockSpreadsheetService();
 jest.mock('@/app/services/spreadsheet/factory', () => ({
@@ -59,7 +59,17 @@ describe('deleteTransaction', () => {
 
     // A second tap from the same stale page still targets row 3 (now Uber Trip).
     expect((await deleteTransaction(3, 'Test Candies', 9.99)).ok).toBe(false);
-    expect((await correctTransactionAmount(4, 'Uber Trip', 6.2, 7)).ok).toBe(false);
+    expect(
+      (
+        await modifyTransaction(4, 'Uber Trip', 6.2, {
+          motive: 'Uber Trip',
+          category: 'Local Transportation',
+          amount: 7,
+          day: '2026-10-09',
+          allFromMerchant: false,
+        })
+      ).ok
+    ).toBe(false);
     expect(await motives()).toEqual([
       [2, 'Super Selectos'],
       [3, 'Uber Trip'],

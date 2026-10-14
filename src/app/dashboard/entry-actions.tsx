@@ -5,29 +5,31 @@ import { useRouter } from "next/navigation";
 import { deleteTransaction } from "./actions";
 import { formatUsd } from "./format";
 
-// Width of the action tray revealed behind a swiped entry.
-const TRAY = 88;
+// Width of the action tray revealed behind a swiped entry: two actions.
+const TRAY = 176;
 
 /**
- * An entry that slides left to reveal its actions (iOS-style). Only Delete
- * for now. A horizontal drag moves the entry; a vertical one is left to the
+ * An entry that slides left to reveal its actions (iOS-style): Modify and
+ * Delete. A horizontal drag moves the entry; a vertical one is left to the
  * page so scrolling still works. Released past half the tray it stays open;
  * a tap on an open entry closes it. On desktop a mouse drag works the same,
  * and so does a two-finger horizontal swipe on a trackpad (wheel events).
- * The tray's button opens when it gets keyboard focus, so the action is
- * reachable without swiping.
+ * The tray's buttons open it when they get keyboard focus, so the actions
+ * are reachable without swiping.
  */
 export function SwipeRow({
   open,
   onOpenChange,
+  onModify,
   onDelete,
   label,
   children,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onModify: () => void;
   onDelete: () => void;
-  /** Names the entry for the Delete button's accessible label. */
+  /** Names the entry for the action buttons' accessible labels. */
   label: string;
   children: ReactNode;
 }) {
@@ -40,7 +42,7 @@ export function SwipeRow({
     axis: "x" | "y" | null;
   } | null>(null);
   // Set when a gesture moved the entry, so the click that ends it doesn't
-  // also open the amount editor or Category picker underneath.
+  // also land on whatever is underneath.
   const swallowClick = useRef(false);
   const surface = useRef<HTMLDivElement>(null);
 
@@ -85,6 +87,17 @@ export function SwipeRow({
           type="button"
           tabIndex={open ? 0 : -1}
           onFocus={() => onOpenChange(true)}
+          onClick={onModify}
+          aria-label={`Modify ${label}`}
+          className="flex-1 text-sm"
+          style={{ background: "var(--ledger-faint)", color: "var(--ledger-card)" }}
+        >
+          Modify
+        </button>
+        <button
+          type="button"
+          tabIndex={open ? 0 : -1}
+          onFocus={() => onOpenChange(true)}
           onClick={onDelete}
           aria-label={`Delete ${label}`}
           className="flex-1 text-sm"
@@ -107,8 +120,6 @@ export function SwipeRow({
         }}
         onPointerDown={(e) => {
           if (e.pointerType === "mouse" && e.button !== 0) return;
-          // Don't start a gesture from inside the open amount field.
-          if ((e.target as HTMLElement).closest("input")) return;
           gesture.current = { x: e.clientX, y: e.clientY, base: rest, axis: null };
           swallowClick.current = false;
         }}

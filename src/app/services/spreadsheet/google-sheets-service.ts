@@ -8,9 +8,10 @@ import {
   SheetTransaction,
   CategoryOverride,
   CategoryRewrite,
+  TransactionRewrite,
 } from './types';
 import { ParsedTransaction, isExpenseCategory } from '../llm/types';
-import { parseTransactionRows } from './parse-row';
+import { dateToSerial, parseTransactionRows } from './parse-row';
 import { sameMerchant } from '../analytics/merchant';
 
 const OVERRIDES_HEADER = ['Merchant', 'Category', 'Updated-at'];
@@ -149,16 +150,27 @@ export class GoogleSheetsService implements SpreadsheetService {
     }
   }
 
-  async rewriteAmount(row: number, amount: number): Promise<void> {
+  async rewriteTransaction(row: number, rewrite: TransactionRewrite): Promise<void> {
     try {
-      // Column C is the amount; a single-cell range can't touch any other
-      // column. RAW stores the number as a number, as UNFORMATTED reads expect.
-      await this.sheets.spreadsheets.values.update({
+      // A:C is date, Motive, amount and E is Category; D (Type) is skipped.
+      // RAW stores the date serial and amount as numbers, as UNFORMATTED
+      // reads expect, and keeps the cells' existing date format.
+      await this.sheets.spreadsheets.values.batchUpdate({
         auth: this.auth,
         spreadsheetId: this.spreadsheetId,
-        range: `${this.sheetNames.transactions}!C${row}`,
-        valueInputOption: 'RAW',
-        requestBody: { values: [[amount]] },
+        requestBody: {
+          valueInputOption: 'RAW',
+          data: [
+            {
+              range: `${this.sheetNames.transactions}!A${row}:C${row}`,
+              values: [[dateToSerial(rewrite.date), rewrite.motive, rewrite.amount]],
+            },
+            {
+              range: `${this.sheetNames.transactions}!E${row}`,
+              values: [[rewrite.category]],
+            },
+          ],
+        },
       });
     } catch (error: unknown) {
       throw this.toWriteError(error);

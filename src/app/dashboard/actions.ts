@@ -75,52 +75,101 @@ export async function correctMerchantCategory(
   }
 }
 
-export type AmountCorrectionResult =
-  | { ok: true; amount: number }
-  | { ok: false; error: string };
+export type TransactionEdit = {
+  motive: string;
+  category: string;
+  amount: number;
+  /** The new calendar day, YYYY-MM-DD; the entry keeps its time of day. */
+  day: string;
+  /**
+   * Save the Category as a Category Override for the (edited) Merchant,
+   * repairing its other rows too. Only meaningful for an Expense.
+   */
+  allFromMerchant: boolean;
+};
+
+export type ModificationResult = { ok: true } | { ok: false; error: string };
 
 /**
- * Correct the amount of one logged Transaction, e.g. when the parser got it
- * wrong. Only that row's amount cell is rewritten. `motive` and `previous`
- * are what the dashboard showed for the row: if the sheet no longer matches
- * them (the page is stale), nothing is written.
+ * Modify one logged Transaction: rewrite its date, Motive, amount and
+ * Category (never its Type). `motive` and `amount` are what the dashboard
+ * showed for the row: if the sheet no longer matches them (the page is
+ * stale), nothing is written. With `allFromMerchant` on an Expense, the
+ * Category also becomes the Merchant's Category Override (see
+ * correctMerchantCategory), keyed by the Merchant of the edited Motive.
  */
-export async function correctTransactionAmount(
+export async function modifyTransaction(
   row: number,
   motive: string,
-  previous: number,
-  amount: number
-): Promise<AmountCorrectionResult> {
+  amount: number,
+  edit: TransactionEdit
+): Promise<ModificationResult> {
   // A server action is a public endpoint: validate everything at runtime.
   if (!Number.isInteger(row) || row < 2) {
-    return { ok: false, error: 'Unknown transaction.' };
+    return { ok: false, error: 'Unknown entry.' };
   }
-  if (typeof amount !== 'number' || !Number.isFinite(amount) || amount <= 0) {
+  const nextMotive = typeof edit?.motive === 'string' ? edit.motive.trim() : '';
+  if (nextMotive === '') {
+    return { ok: false, error: 'Enter a name.' };
+  }
+  if (typeof edit.amount !== 'number' || !Number.isFinite(edit.amount) || edit.amount <= 0) {
     return { ok: false, error: 'Enter an amount greater than $0.' };
   }
-  const cents = Math.round(amount * 100) / 100;
+  const cents = Math.round(edit.amount * 100) / 100;
+  if (typeof edit.day !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(edit.day)) {
+    return { ok: false, error: 'Enter a valid date.' };
+  }
 
   let written = false;
   try {
     const sheet = SpreadsheetServiceFactory.create();
     const current = (await sheet.readTransactions()).find((t) => t.row === row);
-    if (!current || current.motive !== motive || current.amount !== previous) {
+    if (!current || current.motive !== motive || current.amount !== amount) {
       return { ok: false, error: 'This entry changed since the page loaded. Refresh and try again.' };
     }
-    if (current.amount !== cents) {
-      await sheet.rewriteAmount(row, cents);
-      written = true;
+    // A Category outside the closed list is only allowed if it's the one the
+    // row already holds (rows written before the current list existed).
+    if (!isExpenseCategory(edit.category) && edit.category !== current.category) {
+      return { ok: false, error: `"${edit.category}" is not a known Category` };
     }
-    return { ok: true, amount: cents };
+    const date = new Date(`${edit.day}${current.date.toISOString().slice(10)}`);
+    if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== edit.day) {
+      return { ok: false, error: 'Enter a valid date.' };
+    }
+
+    await sheet.rewriteTransaction(row, {
+      date,
+      motive: nextMotive,
+      amount: cents,
+      category: edit.category,
+    });
+    written = true;
+
+    if (edit.allFromMerchant === true && current.type === 'Expense' && isExpenseCategory(edit.category)) {
+      const merchant = merchantName(nextMotive);
+      const result = await correctMerchantCategory(merchant, edit.category);
+      if (!result.ok) {
+        return {
+          ok: false,
+          error: `Saved this entry, but couldn't apply ${edit.category} to all ${merchant} expenses. Try again.`,
+        };
+      }
+    }
+    return { ok: true };
   } catch (error) {
-    console.error('correctTransactionAmount failed:', error);
-    return { ok: false, error: "Couldn't save the amount. Try again." };
+    console.error('modifyTransaction failed:', error);
+    return {
+      ok: false,
+      error: written
+        ? 'Saved this entry, but something else went wrong. Refresh to check.'
+        : "Couldn't save the entry. Try again.",
+    };
   } finally {
     if (written) {
       try {
         await refreshDashboard();
       } catch (error) {
-        console.error('correctTransactionAmount: dashboard revalidation failed:', error);
+        console.error('modifyTransaction: dashboard revalidation failed:', error);
       }
     }
   }

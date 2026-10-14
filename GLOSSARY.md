@@ -18,11 +18,11 @@ One of the 26 fixed categories a Transaction is classified into. The set is clos
 
 ## Merchant
 
-The canonical display name for who a Transaction was with, derived from the Motive by stripping card-feed noise (payment-processor prefixes, store numbers, location suffixes) and merging known spelling variants. Still derived at display time, and the Motive itself is never altered, but no longer purely presentational: a Merchant also keys Category Overrides. Merchants are compared case-insensitively for that purpose, so card-feed casing variants (`Las Brumas` / `LAS BRUMAS`) are one Merchant.
+The canonical display name for who a Transaction was with, derived from the Motive by stripping card-feed noise (payment-processor prefixes, store numbers, location suffixes) and merging known spelling variants. Still derived at display time (the Motive itself changes only when the user modifies an entry's name), but no longer purely presentational: a Merchant also keys Category Overrides. Merchants are compared case-insensitively for that purpose, so card-feed casing variants (`Las Brumas` / `LAS BRUMAS`) are one Merchant.
 
 ## Category Override
 
-A user-chosen Merchant → Category mapping, saved from the dashboard when the user corrects an entry's Category. It applies to every Transaction from that Merchant, never to just one: saving it rewrites the Category cell of every past row whose Motive clusters to the Merchant, and new Transactions from that Merchant take the override's Category instead of the LLM's. One per Merchant (saving again replaces it), stored in the `CategoryOverrides` sheet (Merchant, Category, Updated-at), where it can be inspected or deleted by hand.
+A user-chosen Merchant → Category mapping, saved from the dashboard when the user modifies an Expense's Category and leaves "use it for all of this Merchant's expenses" checked (unchecked, only that one entry's Category changes and no override is saved). An override applies to every Transaction from that Merchant, never to just one: saving it rewrites the Category cell of every past row whose Motive clusters to the Merchant, and new Transactions from that Merchant take the override's Category instead of the LLM's. One per Merchant (saving again replaces it), stored in the `CategoryOverrides` sheet (Merchant, Category, Updated-at), where it can be inspected or deleted by hand.
 
 ## Daily Average
 

@@ -10,6 +10,11 @@ export function serialToDate(serial: number): Date {
   return new Date(SHEETS_EPOCH_UTC_MS + Math.round(serial * MS_PER_DAY));
 }
 
+/** The inverse of serialToDate: a UTC wall-clock Date as a sheet serial. */
+export function dateToSerial(date: Date): number {
+  return (date.getTime() - SHEETS_EPOCH_UTC_MS) / MS_PER_DAY;
+}
+
 /**
  * Parse one raw sheet row (A:E = date serial, motive, amount, type, category)
  * as returned with valueRenderOption UNFORMATTED_VALUE. Returns null for rows

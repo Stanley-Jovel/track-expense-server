@@ -4,6 +4,7 @@ import {
   SheetTransaction,
   SpreadsheetService,
   SpreadsheetPermissionError,
+  TransactionRewrite,
 } from './types';
 import { ParsedTransaction } from '../llm/types';
 import { sameMerchant } from '../analytics/merchant';
@@ -37,11 +38,11 @@ export class MockSpreadsheetService implements SpreadsheetService {
     }
   }
 
-  async rewriteAmount(row: number, amount: number): Promise<void> {
+  async rewriteTransaction(row: number, rewrite: TransactionRewrite): Promise<void> {
     this.failIfAsked();
     const target = this.rows[row - 2];
     if (!target) throw new Error(`No sheet row ${row}`);
-    this.rows[row - 2] = { ...target, amount };
+    this.rows[row - 2] = { ...target, ...rewrite, date: new Date(rewrite.date) };
   }
 
   async deleteTransactionRow(row: number): Promise<void> {

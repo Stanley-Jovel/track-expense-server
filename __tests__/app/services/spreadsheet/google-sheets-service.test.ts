@@ -64,15 +64,23 @@ describe('rewriteCategories', () => {
   });
 });
 
-describe('rewriteAmount', () => {
-  it('writes only the single amount cell of the row, as a number', async () => {
-    await service.rewriteAmount(42, 1.5);
+describe('rewriteTransaction', () => {
+  it('writes date, Motive, amount and Category of the row, never its Type', async () => {
+    await service.rewriteTransaction(42, {
+      date: new Date('2026-10-09T14:30:00.000Z'),
+      motive: 'Las Brumas',
+      amount: 1.5,
+      category: 'Dining Out',
+    });
 
-    expect(api.values.update).toHaveBeenCalledTimes(1);
-    const [req] = api.values.update.mock.calls[0];
-    expect(req.range).toBe(`${TX}!C42`);
-    expect(req.valueInputOption).toBe('RAW');
-    expect(req.requestBody.values).toEqual([[1.5]]);
+    expect(api.values.batchUpdate).toHaveBeenCalledTimes(1);
+    const [{ requestBody }] = api.values.batchUpdate.mock.calls[0];
+    expect(requestBody.valueInputOption).toBe('RAW');
+    expect(requestBody.data).toEqual([
+      // 2026-10-09 is serial 46304; 14:30 is 0.6041666… of a day.
+      { range: `${TX}!A42:C42`, values: [[46304 + 14.5 / 24, 'Las Brumas', 1.5]] },
+      { range: `${TX}!E42`, values: [['Dining Out']] },
+    ]);
   });
 });
 

@@ -28,9 +28,8 @@ import {
 } from "@/app/services/analytics/aggregate";
 import { merchantName } from "@/app/services/analytics/merchant";
 import { MonthlyTrendChart, PaceChart } from "./charts";
-import { EntryCategoryLine } from "./category-picker";
-import { EntryAmount } from "./amount-editor";
 import { DeleteConfirm, SwipeRow } from "./entry-actions";
+import { ModifySheet } from "./modify-sheet";
 import { formatDay, formatMonthLong, formatUsd } from "./format";
 
 export type SerializableTransaction = Omit<SheetTransaction, "date"> & {
@@ -81,9 +80,10 @@ export function DashboardClient({
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<SortOrder>("newest");
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
-  // By sheet row: the entry swiped open to show its actions, and the entry
-  // whose Delete is waiting for confirmation.
+  // By sheet row: the entry swiped open to show its actions, the entry being
+  // modified, and the entry whose Delete is waiting for confirmation.
   const [swipedRow, setSwipedRow] = useState<number | null>(null);
+  const [modifyRow, setModifyRow] = useState<number | null>(null);
   const [confirmRow, setConfirmRow] = useState<number | null>(null);
 
   useEffect(() => {
@@ -495,6 +495,11 @@ export function DashboardClient({
             <SwipeRow
               open={swipedRow === t.row}
               onOpenChange={(open) => setSwipedRow(open ? t.row : null)}
+              onModify={() => {
+                setSwipedRow(null);
+                setConfirmRow(null);
+                setModifyRow(t.row);
+              }}
               onDelete={() => {
                 setSwipedRow(null);
                 setConfirmRow(t.row);
@@ -506,27 +511,31 @@ export function DashboardClient({
                   <p className="truncate text-sm" title={t.motive}>
                     {t.merchant}
                   </p>
-                  {t.type === "Expense" ? (
-                    <EntryCategoryLine
-                      merchant={t.merchant}
-                      category={t.category}
-                      dateLabel={formatDay(t.date)}
-                    />
-                  ) : (
-                    // Overrides only recategorize Expenses, so Income has no picker.
-                    <p className="mt-0.5 text-xs" style={{ color: "var(--ledger-faint)" }}>
-                      {t.category} · {formatDay(t.date)}
-                    </p>
-                  )}
+                  <p className="mt-0.5 text-xs" style={{ color: "var(--ledger-faint)" }}>
+                    {t.category} · {formatDay(t.date)}
+                  </p>
                 </div>
-                <EntryAmount
-                  row={t.row}
-                  motive={t.motive}
-                  amount={t.amount}
-                  type={t.type}
-                />
+                <span
+                  className="shrink-0 text-sm tabular-nums"
+                  style={t.type === "Income" ? { color: "var(--ledger-down)" } : undefined}
+                >
+                  {t.type === "Income" ? "+" : "−"}
+                  {formatUsd(t.amount)}
+                </span>
               </div>
             </SwipeRow>
+            {modifyRow === t.row && (
+              <ModifySheet
+                row={t.row}
+                motive={t.motive}
+                merchant={t.merchant}
+                category={t.category}
+                amount={t.amount}
+                type={t.type}
+                date={t.date}
+                onClose={() => setModifyRow(null)}
+              />
+            )}
             {confirmRow === t.row && (
               <DeleteConfirm
                 row={t.row}
