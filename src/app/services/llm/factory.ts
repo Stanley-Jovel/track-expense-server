@@ -7,10 +7,10 @@ import { VercelAIService } from './vercel-ai-service';
 import { FallbackLLMService, NamedLLMService } from './fallback-service';
 
 const DEFAULT_MODELS = {
-  groq: 'openai/gpt-oss-20b',
   // deepseek-chat was retired 2026-07-24. Flash is DeepSeek's cheapest model
   // (V4 Pro costs about 4x more); its thinking mode is off below.
   deepseek: 'deepseek-flash',
+  groq: 'openai/gpt-oss-20b',
   mistral: 'open-mistral-nemo',
   openai: 'gpt-4o-mini',
 } as const;
@@ -18,14 +18,8 @@ const DEFAULT_MODELS = {
 function buildProductionService(): LLMApiService {
   const services: NamedLLMService[] = [];
 
-  if (process.env.GROQ_API_KEY) {
-    const groq = createGroq({ apiKey: process.env.GROQ_API_KEY });
-    services.push({
-      name: 'groq',
-      service: new VercelAIService(groq(DEFAULT_MODELS.groq), 'groq'),
-    });
-  }
-
+  // Providers are tried in this order. DeepSeek goes first: it's on paid
+  // credit, while Groq is on a trial.
   if (process.env.DEEPSEEK_API_KEY) {
     const deepseek = createDeepSeek({ apiKey: process.env.DEEPSEEK_API_KEY });
     services.push({
@@ -35,6 +29,14 @@ function buildProductionService(): LLMApiService {
       service: new VercelAIService(deepseek(DEFAULT_MODELS.deepseek), 'deepseek', {
         deepseek: { thinking: { type: 'disabled' } },
       }),
+    });
+  }
+
+  if (process.env.GROQ_API_KEY) {
+    const groq = createGroq({ apiKey: process.env.GROQ_API_KEY });
+    services.push({
+      name: 'groq',
+      service: new VercelAIService(groq(DEFAULT_MODELS.groq), 'groq'),
     });
   }
 
