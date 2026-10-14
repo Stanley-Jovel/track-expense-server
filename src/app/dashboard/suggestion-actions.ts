@@ -149,6 +149,32 @@ export async function mergeSuggestion(
 }
 
 /**
+ * Dismiss a Category Suggestion ("Not a category"): record its spelling as
+ * Dismissed, so ingest drops it silently from then on, and clear its
+ * entries' F. Each entry keeps the Category the LLM gave it.
+ */
+export async function dismissSuggestion(answer: ListedSuggestion): Promise<ReviewResult> {
+  if (!isListedSuggestion(answer)) {
+    return { ok: false, error: 'Unknown suggestion.' };
+  }
+  try {
+    const sheet = SpreadsheetServiceFactory.create();
+    const { moved, skipped } = await recordAndRewrite(
+      sheet,
+      answer,
+      { outcome: 'Dismissed', target: '' },
+      (t) => ({ row: t.row, suggestedCategory: '' })
+    );
+    return { ok: true, moved, skipped };
+  } catch (error) {
+    console.error('dismissSuggestion failed:', error);
+    return { ok: false, error: "Couldn't dismiss this suggestion. Try again." };
+  } finally {
+    await refreshAfter('dismissSuggestion');
+  }
+}
+
+/**
  * Approve a Category Suggestion as a new Category: add `name` to the
  * Categories sheet with its Spending flag (so the LLM is offered it from the
  * next Expense on), record the Suggestion's spelling as its Alias, move the

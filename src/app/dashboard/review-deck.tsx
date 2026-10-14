@@ -6,6 +6,7 @@ import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { merchantName } from "@/app/services/analytics/merchant";
 import type { CategorySuggestion } from "@/app/services/categories/open-categories";
 import { approveSuggestion, mergeSuggestion, type ReviewResult } from "./suggestion-actions";
+import { dismissSuggestion } from "./suggestion-actions";
 import { formatUsd } from "./format";
 
 const faint = { color: "var(--ledger-faint)" };
@@ -146,7 +147,7 @@ function ReviewDeck({
 }
 
 // Which answer is in flight, to label its button.
-type Choice = "hint" | "spending" | "movement" | "other";
+type Choice = "hint" | "spending" | "movement" | "other" | "dismiss";
 
 function SuggestionCard({
   suggestion,
@@ -307,6 +308,23 @@ function SuggestionCard({
           {pending && choice === "movement" ? "Adding…" : "Yes, as Money Movement"}
           <span className="block text-xs italic" style={faint}>
             savings, transfers, loan principal: not Spending
+          </span>
+        </button>
+        <button
+          onClick={() =>
+            answerWith(
+              "dismiss",
+              () => dismissSuggestion(listed),
+              "Couldn't dismiss this suggestion. Try again."
+            )
+          }
+          disabled={pending}
+          className={answer}
+          style={rule}
+        >
+          {pending && choice === "dismiss" ? "Dismissing…" : "Not a category"}
+          <span className="block text-xs italic" style={faint}>
+            keeps each entry where it is
           </span>
         </button>
         {/* A native picker: a wheel on the iPhone. Picking a Category is the
