@@ -1,98 +1,13 @@
 import { z } from 'zod';
+import type { Category } from '../categories/category-list';
 
 export type ExpenseType = 'Income' | 'Expense';
-
-export const EXPENSE_CATEGORIES = [
-  // Housing & Utilities
-  'Rent / Mortgage',
-  'Utilities',
-  'Internet & Phone',
-  'Home Maintenance & Furnishings',
-  // Food
-  'Groceries',
-  'Dining Out',
-  'Coffee & Quick Bites',
-  // Getting Around
-  'Local Transportation',
-  'Travel',
-  // Health
-  'Medical & Pharmacy',
-  'Fitness & Wellness',
-  'Personal Care',
-  // Lifestyle
-  'Shopping — General',
-  'Clothing',
-  'Entertainment',
-  'Subscriptions',
-  // Obligations
-  'Insurance',
-  'Taxes',
-  'Education',
-  // People & Causes
-  'Gifts',
-  'Donations / Charity',
-  // Money Movement (excluded from dashboard Spending — see GLOSSARY.md)
-  'Investments & Savings',
-  'Transfers',
-  // Fees are consumed money, so despite the banking flavor this is Spending.
-  'Bank & FX Fees',
-  // Income
-  'Income',
-] as const;
-
-/**
- * One row of the Category list (see GLOSSARY.md: Category): its name and
- * whether its Expenses count as Spending. A Category that doesn't is Money
- * Movement.
- */
-export interface CategoryEntry {
-  name: string;
-  countsAsSpending: boolean;
-}
-
-// Income never counts as Spending (it isn't an Expense); the flag only keeps
-// the list honest when read by hand in the Categories sheet.
-const BUILT_IN_NOT_SPENDING_NAMES: readonly string[] = ['Transfers', 'Investments & Savings', 'Income'];
-
-/**
- * The built-in list with its Spending flags. It seeds the Categories sheet on
- * first read and is the fallback whenever that sheet can't be read.
- */
-export const BUILT_IN_CATEGORIES: readonly CategoryEntry[] = EXPENSE_CATEGORIES.map((name) => ({
-  name,
-  countsAsSpending: !BUILT_IN_NOT_SPENDING_NAMES.includes(name),
-}));
-
-/** The names on a Category list, in order. */
-export function categoryNames(categories: readonly CategoryEntry[]): string[] {
-  return categories.map((c) => c.name);
-}
-
-/** The Categories on a list that don't count as Spending. */
-export function notSpendingOf(categories: readonly CategoryEntry[]): string[] {
-  return categories.filter((c) => !c.countsAsSpending).map((c) => c.name);
-}
-
-export const BUILT_IN_NOT_SPENDING: readonly string[] = notSpendingOf(BUILT_IN_CATEGORIES);
-
-// A Category is any name on the Category list the caller passes in. The list
-// lives in the Categories sheet; the edges (ingest, the dashboard page, server
-// actions) read it and hand it down, falling back to the built-in list.
-export type ExpenseCategory = string;
-
-/** Whether `category` is one of the given `categories`. */
-export function isExpenseCategory(
-  category: unknown,
-  categories: readonly string[]
-): category is ExpenseCategory {
-  return categories.some((c) => c === category);
-}
 
 export interface ParsedTransaction {
   motive: string;
   amount: number;
   type: ExpenseType;
-  category: ExpenseCategory;
+  category: Category;
   /**
    * A new Category the LLM suggests when nothing on the list is a clear fit
    * (Expenses only). Stored in column F; see GLOSSARY.md: Category Suggestion.

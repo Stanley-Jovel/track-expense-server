@@ -15,7 +15,9 @@ import {
 } from '@/app/services/analytics/aggregate';
 import { merchantName } from '@/app/services/analytics/merchant';
 import { Transaction } from '@/app/services/spreadsheet/types';
-import { BUILT_IN_NOT_SPENDING, notSpendingOf } from '@/app/services/llm/types';
+import { BUILT_IN_CATEGORY_LIST, categoryList } from '@/app/services/categories/category-list';
+
+const BUILT_IN_NOT_SPENDING = BUILT_IN_CATEGORY_LIST.notSpending;
 import { MockSpreadsheetService } from '@/app/services/spreadsheet/mock-service';
 
 const tx = (
@@ -119,7 +121,7 @@ describe('paceStats — Spending per the glossary', () => {
 
   it('excludes a Category flagged as not counting as Spending', () => {
     const withCarLoan = [...data, tx('2026-01-09T00:00:00Z', 300, { category: 'Car Loan' })];
-    const notSpending = notSpendingOf([
+    const { notSpending } = categoryList([
       { name: 'Groceries', countsAsSpending: true },
       { name: 'Transfers', countsAsSpending: false },
       { name: 'Investments & Savings', countsAsSpending: false },
@@ -135,7 +137,7 @@ describe('paceStats — Spending per the glossary', () => {
   it('gives the same Spending right after the Categories sheet is seeded', async () => {
     const seeded = await new MockSpreadsheetService().readCategories();
 
-    const stats = paceStats(data, JAN, notSpendingOf(seeded), NOW);
+    const stats = paceStats(data, JAN, categoryList(seeded).notSpending, NOW);
 
     expect(stats.spending).toBe(105);
     expect(stats.moneyMovement).toBe(2500);

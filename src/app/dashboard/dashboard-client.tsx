@@ -32,6 +32,7 @@ import { DeleteConfirm, SwipeRow } from "./entry-actions";
 import { ModifySheet } from "./modify-sheet";
 import { SuggestionsBanner } from "./review-deck";
 import type { CategorySuggestion } from "@/app/services/categories/open-categories";
+import { CategoryEntry, categoryList } from "@/app/services/categories/category-list";
 import { formatDay, formatMonthLong, formatUsd } from "./format";
 
 export type SerializableTransaction = Omit<SheetTransaction, "date"> & {
@@ -46,17 +47,17 @@ const PAGE_SIZE = 25;
 export function DashboardClient({
   transactions: raw,
   fetchedAt,
-  categoryList,
-  notSpending,
+  categories: categoryEntries,
   suggestions,
 }: {
   transactions: SerializableTransaction[];
   /** Server render time; the deterministic "now" for pace and projections. */
   fetchedAt: number;
-  /** The Category list Modify offers. */
-  categoryList: readonly string[];
-  /** Categories that don't count as Spending (Money Movement). */
-  notSpending: readonly string[];
+  /**
+   * The Category list: what Modify and the review deck offer, and which
+   * Categories don't count as Spending (Money Movement).
+   */
+  categories: readonly CategoryEntry[];
   /** Category Suggestions waiting for review. */
   suggestions: CategorySuggestion[];
 }) {
@@ -65,6 +66,10 @@ export function DashboardClient({
     [raw]
   );
   const now = useMemo(() => new Date(fetchedAt), [fetchedAt]);
+  const { names: categoryNames, notSpending } = useMemo(
+    () => categoryList(categoryEntries),
+    [categoryEntries]
+  );
 
   const months = useMemo(() => allMonthKeys(transactions), [transactions]);
   const years = useMemo(() => allYearKeys(transactions), [transactions]);
@@ -72,10 +77,10 @@ export function DashboardClient({
   // at once, then any older Category still on rows but no longer listed.
   const categories = useMemo(
     () => [
-      ...categoryList,
-      ...allCategories(transactions).filter((c) => !categoryList.includes(c)),
+      ...categoryNames,
+      ...allCategories(transactions).filter((c) => !categoryNames.includes(c)),
     ],
-    [categoryList, transactions]
+    [categoryNames, transactions]
   );
 
   // The view persists in the URL so a refresh keeps what was on screen.
@@ -284,7 +289,7 @@ export function DashboardClient({
         </div>
       </header>
 
-      <SuggestionsBanner suggestions={suggestions} categories={categoryList} />
+      <SuggestionsBanner suggestions={suggestions} categories={categoryNames} />
 
       {/* Hero figure */}
       <section className="mt-7 text-center">
@@ -551,7 +556,7 @@ export function DashboardClient({
                 motive={t.motive}
                 merchant={t.merchant}
                 category={t.category}
-                categories={categoryList}
+                categories={categoryNames}
                 amount={t.amount}
                 type={t.type}
                 date={t.date}

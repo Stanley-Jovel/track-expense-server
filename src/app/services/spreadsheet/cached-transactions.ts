@@ -2,7 +2,8 @@ import { unstable_cache } from 'next/cache';
 import { SpreadsheetServiceFactory } from './factory';
 import { SheetTransaction } from './types';
 import { readCategoriesOrBuiltIn } from './categories';
-import { CategoryEntry } from '../llm/types';
+import { CategoryEntry } from '../categories/category-list';
+import { CATEGORIES_CACHE_TAG, TRANSACTIONS_CACHE_TAG } from './cache-tags';
 
 // unstable_cache JSON-serializes its result, so Dates are cached as ISO
 // strings and revived on the way out.
@@ -14,10 +15,10 @@ const readSerialized = unstable_cache(
     const transactions = await service.readTransactions();
     return transactions.map((t) => ({ ...t, date: t.date.toISOString() }));
   },
-  ['sheet-transactions'],
+  [TRANSACTIONS_CACHE_TAG],
   // The tag lets writers and the dashboard refresh button bust this cache
   // on demand (revalidateTag) before the 60s TTL expires.
-  { revalidate: 60, tags: ['sheet-transactions'] }
+  { revalidate: 60, tags: [TRANSACTIONS_CACHE_TAG] }
 );
 
 /** All transactions from the sheet, cached for 60 seconds across requests. */
@@ -29,10 +30,11 @@ export async function getTransactions(): Promise<SheetTransaction[]> {
 const readCategoryList = unstable_cache(
   async (): Promise<CategoryEntry[]> =>
     readCategoriesOrBuiltIn(SpreadsheetServiceFactory.create()),
-  ['sheet-categories'],
-  // Same tag as the rows, so every existing cache bust (ingest, the server
-  // actions, the refresh button) also picks up hand edits to the list.
-  { revalidate: 60, tags: ['sheet-transactions'] }
+  [CATEGORIES_CACHE_TAG],
+  // Its own tag; every cache bust (ingest, the server actions, the refresh
+  // button) busts it with the rows' (see SHEET_CACHE_TAGS), so hand edits to
+  // the list show up too.
+  { revalidate: 60, tags: [CATEGORIES_CACHE_TAG] }
 );
 
 /**

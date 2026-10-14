@@ -1,4 +1,4 @@
-import { BUILT_IN_CATEGORIES, CategoryEntry } from '../llm/types';
+import { BUILT_IN_CATEGORIES, CategoryEntry } from '../categories/category-list';
 import { SpreadsheetService } from './types';
 
 /**

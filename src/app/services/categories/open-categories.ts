@@ -4,7 +4,7 @@
  * actions read the sheet and hand rows in.
  *
  * Lifted from the logic prototype (branch prototype/open-categories):
- * `normalize`, grouping rows into Suggestions, the ingest check against the
+ * `spellingKey`, grouping rows into Suggestions, the ingest check against the
  * Category list and the recorded Category Spellings, and the look-alike hint.
  */
 
@@ -22,7 +22,7 @@ function singular(word: string): string {
  * "Pet Supplies", "pet supply" and "Pet supplies!" all become "pet supply";
  * "Gas & Fuel" becomes "gas and fuel". This is the only automatic merge.
  */
-export function normalize(name: string): string {
+export function spellingKey(name: string): string {
   return name
     .toLowerCase()
     .replace(/&/g, ' and ')
@@ -55,7 +55,7 @@ export interface SuggestionEntry {
 
 /**
  * A Category Suggestion: the Expense rows whose Suggested Category
- * normalizes to the same `key`. Plain data, so it can go to the client.
+ * has the same spelling key, `key`. Plain data, so it can go to the client.
  */
 export interface CategorySuggestion {
   key: string;
@@ -77,7 +77,7 @@ export type SuggestionHint =
 
 /**
  * The waiting Category Suggestions in `rows`: every Expense row with a
- * non-blank Suggested Category, grouped by its normalized spelling. Groups
+ * non-blank Suggested Category, grouped by its spelling key. Groups
  * and their entries keep sheet order, so the first-seen spelling labels each
  * group and the oldest Suggestion comes first.
  */
@@ -86,7 +86,7 @@ export function groupSuggestions(rows: readonly SuggestionRow[]): CategorySugges
   for (const t of [...rows].sort((a, b) => a.row - b.row)) {
     const suggested = t.suggestedCategory?.trim();
     if (t.type !== 'Expense' || !suggested) continue;
-    const key = normalize(suggested);
+    const key = spellingKey(suggested);
     if (!key) continue;
     let group = groups.get(key);
     if (!group) {
@@ -110,7 +110,7 @@ export function groupSuggestions(rows: readonly SuggestionRow[]): CategorySugges
 export type SpellingOutcome = 'Alias' | 'Dismissed';
 
 /**
- * One row of the CategorySpellings sheet: a normalized spelling the user has
+ * One row of the CategorySpellings sheet: a spelling key the user has
  * already answered, and what it means from now on. An `Alias` targets a
  * Category (after Approve or Merge) or a waiting Suggestion's label (after a
  * fold); a `Dismissed` spelling has no target.
@@ -125,39 +125,58 @@ export interface CategorySpelling {
 
 /** What ingest does with a suggestion (see checkSuggestion). */
 export type SuggestionCheck =
-  | { file: string } // under this Category, F blank
-  | { suggest: string } // waits for review: this goes in F
-  | { drop: true }; // a dismissed spelling: F blank, the LLM's Category stays
+  | { kind: 'file'; category: string } // under this Category, F blank
+  | { kind: 'suggest'; label: string } // waits for review: this goes in F
+  | { kind: 'drop' }; // a dismissed spelling: F blank, the LLM's Category stays
 
 /**
  * The ingest check for an Expense's suggestion, from the logic prototype:
  * first match wins. A respelling of a Category is filed there; a recorded
- * spelling follows its outcome; anything else waits for review in F.
+ * spelling follows its outcome (an Alias to a Category is filed there, an
+ * Alias to a waiting Suggestion joins it, a Dismissed spelling is dropped);
+ * anything else waits for review in F.
  */
 export function checkSuggestion(
   suggestion: string,
   categories: readonly string[],
   spellings: readonly CategorySpelling[]
 ): SuggestionCheck {
-  const key = normalize(suggestion);
-  const same = categories.find((c) => normalize(c) === key);
-  if (same) return { file: same };
+  const key = spellingKey(suggestion);
+  const same = categories.find((c) => spellingKey(c) === key);
+  if (same) return { kind: 'file', category: same };
   const recorded = spellings.find((s) => s.spelling === key);
   if (recorded?.outcome === 'Alias') {
     // The target may be a Category spelled differently than on the list, or
     // the label of a waiting Suggestion (a fold).
-    const category = categories.find((c) => normalize(c) === normalize(recorded.target));
-    return category ? { file: category } : { suggest: recorded.target };
+    const category = categories.find((c) => spellingKey(c) === spellingKey(recorded.target));
+    return category
+      ? { kind: 'file', category }
+      : { kind: 'suggest', label: recorded.target };
   }
-  if (recorded?.outcome === 'Dismissed') return { drop: true };
-  return { suggest: suggestion };
+  if (recorded?.outcome === 'Dismissed') return { kind: 'drop' };
+  return { kind: 'suggest', label: suggestion };
+}
+
+/**
+ * `t` with its Suggested Category (column F) set to `suggested`, trimmed, or
+ * with none when `suggested` is missing or blank: a blank F reads back as no
+ * suggestion.
+ */
+export function withSuggestedCategory<T extends { suggestedCategory?: string }>(
+  t: T,
+  suggested?: string
+): T {
+  const rest = { ...t };
+  delete rest.suggestedCategory;
+  const trimmed = suggested?.trim();
+  return trimmed ? { ...rest, suggestedCategory: trimmed } : rest;
 }
 
 // Words too common to make two names look alike.
 const STOP_WORDS = new Set(['and', 'the', 'of', 'for']);
 
 function wordsOf(name: string): string[] {
-  return [...new Set(normalize(name).split(' ').filter((w) => w && !STOP_WORDS.has(w)))];
+  return [...new Set(spellingKey(name).split(' ').filter((w) => w && !STOP_WORDS.has(w)))];
 }
 
 // Two words count as the same when they share a start of at least 5 letters

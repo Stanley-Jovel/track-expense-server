@@ -10,7 +10,7 @@ import {
   CategorySpelling,
   SpellingOutcome,
   groupSuggestions,
-  normalize,
+  spellingKey,
 } from '@/app/services/categories/open-categories';
 import { refreshDashboard } from './actions';
 
@@ -70,19 +70,19 @@ function unchangedRows(
       current.type === 'Expense' &&
       current.motive === entry.motive &&
       current.amount === entry.amount &&
-      normalize(current.suggestedCategory ?? '') === suggestion.key;
+      spellingKey(current.suggestedCategory ?? '') === suggestion.key;
     return unchanged ? [current] : [];
   });
 }
 
 /**
  * The second half of every answer: record the Suggestion's spellings in the
- * CategorySpellings sheet, then rewrite each of its rows that is unchanged
- * since it was listed. Spellings go first: if the rows can't be written, the
+ * CategorySpellings sheet, then rewrite each of its rows (in `rows`, the
+ * Transactions as just read) that is unchanged since it was listed. Spellings go first: if the rows can't be written, the
  * same answer can simply be given again (recording is an upsert), and later
  * Expenses already follow it.
  *
- * Every row of a Suggestion normalizes to its key, so the key is its only
+ * Every row of a Suggestion has its key as spelling key, so the key is its only
  * recorded spelling of its own. Spellings folded into it earlier (Aliases
  * whose Target is its label) follow the same answer: approved under a new
  * name, merged, dismissed or folded again, they end up where it does instead
@@ -90,15 +90,15 @@ function unchangedRows(
  */
 async function recordAndRewrite(
   sheet: SpreadsheetService,
+  rows: SheetTransaction[],
   answer: ListedSuggestion,
   spelling: { outcome: SpellingOutcome; target: string },
   rewrite: (row: SheetTransaction) => SuggestionRewrite
 ): Promise<{ moved: number; skipped: number }> {
-  const rows = await sheet.readTransactions();
   const unchanged = unchangedRows(rows, answer);
   const updatedAt = new Date().toISOString();
   const folded = (await sheet.readCategorySpellings()).filter(
-    (s) => s.outcome === 'Alias' && s.spelling !== answer.key && normalize(s.target) === answer.key
+    (s) => s.outcome === 'Alias' && s.spelling !== answer.key && spellingKey(s.target) === answer.key
   );
   const recorded: CategorySpelling[] = [answer.key, ...folded.map((s) => s.spelling)].map(
     (key) => ({ spelling: key, ...spelling, updatedAt })
@@ -108,8 +108,9 @@ async function recordAndRewrite(
   return { moved: unchanged.length, skipped: answer.entries.length - unchanged.length };
 }
 
-// Like ingest, a revalidation problem is logged and never turns a saved
-// answer into a failure.
+// Refreshes the dashboard once an answer has written to it. Like ingest, a
+// revalidation problem is logged and never turns a saved answer into a
+// failure.
 async function refreshAfter(action: string): Promise<void> {
   try {
     await refreshDashboard();
@@ -130,7 +131,6 @@ export async function mergeSuggestion(
   if (!isListedSuggestion(answer) || typeof answer.into !== 'string') {
     return { ok: false, error: 'Unknown suggestion.' };
   }
-  let wrote = false;
   try {
     const sheet = SpreadsheetServiceFactory.create();
     const categories = await sheet.readCategories();
@@ -138,19 +138,18 @@ export async function mergeSuggestion(
     if (!into) {
       return { ok: false, error: `${answer.into} is not a category.` };
     }
-    wrote = true;
     const { moved, skipped } = await recordAndRewrite(
       sheet,
+      await sheet.readTransactions(),
       answer,
       { outcome: 'Alias', target: into },
       (t) => ({ row: t.row, category: into, suggestedCategory: '' })
     );
+    await refreshAfter('mergeSuggestion');
     return { ok: true, moved, skipped };
   } catch (error) {
     console.error('mergeSuggestion failed:', error);
     return { ok: false, error: `Couldn't move these into ${answer.into}. Try again.` };
-  } finally {
-    if (wrote) await refreshAfter('mergeSuggestion');
   }
 }
 
@@ -167,16 +166,16 @@ export async function dismissSuggestion(answer: ListedSuggestion): Promise<Revie
     const sheet = SpreadsheetServiceFactory.create();
     const { moved, skipped } = await recordAndRewrite(
       sheet,
+      await sheet.readTransactions(),
       answer,
       { outcome: 'Dismissed', target: '' },
       (t) => ({ row: t.row, suggestedCategory: '' })
     );
+    await refreshAfter('dismissSuggestion');
     return { ok: true, moved, skipped };
   } catch (error) {
     console.error('dismissSuggestion failed:', error);
     return { ok: false, error: "Couldn't dismiss this suggestion. Try again." };
-  } finally {
-    await refreshAfter('dismissSuggestion');
   }
 }
 
@@ -195,7 +194,7 @@ export async function approveSuggestion(
     return { ok: false, error: 'Unknown suggestion.' };
   }
   const name = typeof answer.name === 'string' ? answer.name.trim().replace(/\s+/g, ' ') : '';
-  if (normalize(name) === '') {
+  if (spellingKey(name) === '') {
     return { ok: false, error: 'Enter a name for the category.' };
   }
   if (name.length > 60) {
@@ -208,7 +207,7 @@ export async function approveSuggestion(
     // Read the list itself, not the built-in fallback: adding to a list that
     // can't be read could duplicate a Category.
     const categories = await sheet.readCategories();
-    const existing = categories.find((c) => normalize(c.name) === normalize(name));
+    const existing = categories.find((c) => spellingKey(c.name) === spellingKey(name));
     if (existing) {
       return {
         ok: false,
@@ -228,6 +227,7 @@ export async function approveSuggestion(
 
     const { moved, skipped } = await recordAndRewrite(
       sheet,
+      await sheet.readTransactions(),
       answer,
       { outcome: 'Alias', target: name },
       (t) => ({ row: t.row, category: name, suggestedCategory: '' })
@@ -259,28 +259,27 @@ export async function foldSuggestion(
   if (!isListedSuggestion(answer) || typeof answer.into !== 'string') {
     return { ok: false, error: 'Unknown suggestion.' };
   }
-  let wrote = false;
   try {
     const sheet = SpreadsheetServiceFactory.create();
+    const rows = await sheet.readTransactions();
     // The target must still be waiting, under the label it was listed with.
-    const target = groupSuggestions(await sheet.readTransactions()).find(
+    const target = groupSuggestions(rows).find(
       (s) => s.label === answer.into && s.key !== answer.key
     );
     if (!target) {
       return { ok: false, error: `${answer.into} is no longer waiting for review.` };
     }
-    wrote = true;
     const { moved, skipped } = await recordAndRewrite(
       sheet,
+      rows,
       answer,
       { outcome: 'Alias', target: target.label },
       (t) => ({ row: t.row, suggestedCategory: target.label })
     );
+    await refreshAfter('foldSuggestion');
     return { ok: true, moved, skipped };
   } catch (error) {
     console.error('foldSuggestion failed:', error);
     return { ok: false, error: `Couldn't fold these into ${answer.into}. Try again.` };
-  } finally {
-    if (wrote) await refreshAfter('foldSuggestion');
   }
 }

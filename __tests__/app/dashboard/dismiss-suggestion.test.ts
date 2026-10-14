@@ -82,7 +82,7 @@ describe('dismissSuggestion', () => {
     expect(revalidateTag).not.toHaveBeenCalled();
   });
 
-  it("shows a failure when the sheet can't be written", async () => {
+  it("shows a failure, and leaves the dashboard alone, when the sheet can't be written", async () => {
     const misc = await suggestion('Misc Stuff');
     sheet.setShouldFail(true);
     jest.spyOn(console, 'error').mockImplementation(() => {});
@@ -90,5 +90,6 @@ describe('dismissSuggestion', () => {
     const result = await dismissSuggestion(misc);
 
     expect(result).toEqual({ ok: false, error: expect.any(String) });
+    expect(revalidateTag).not.toHaveBeenCalled();
   });
 });

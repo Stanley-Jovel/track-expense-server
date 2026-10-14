@@ -1,7 +1,7 @@
 import { revalidatePath, revalidateTag } from 'next/cache';
 import { MockSpreadsheetService } from '@/app/services/spreadsheet/mock-service';
 import { correctMerchantCategory } from '@/app/dashboard/actions';
-import { EXPENSE_CATEGORIES, type ExpenseCategory } from '@/app/services/llm/types';
+import { BUILT_IN_CATEGORY_NAMES, type Category } from '@/app/services/categories/category-list';
 
 // The correction action builds its own spreadsheet service through the
 // factory; point that at one in-memory mock the test can seed and inspect.
@@ -78,7 +78,7 @@ describe('correctMerchantCategory', () => {
   it('remembers the correction as a Category Override for the Merchant', async () => {
     await correctMerchantCategory('Las Brumas', 'Dining Out');
 
-    expect(await sheet.readCategoryOverrides(EXPENSE_CATEGORIES)).toEqual([
+    expect(await sheet.readCategoryOverrides(BUILT_IN_CATEGORY_NAMES)).toEqual([
       { merchant: 'Las Brumas', category: 'Dining Out', updatedAt: expect.any(String) },
     ]);
   });
@@ -89,7 +89,7 @@ describe('correctMerchantCategory', () => {
     const result = await correctMerchantCategory('LAS BRUMAS', 'Coffee & Quick Bites');
 
     expect(result).toEqual({ ok: true, repaired: 3 });
-    const overrides = await sheet.readCategoryOverrides(EXPENSE_CATEGORIES);
+    const overrides = await sheet.readCategoryOverrides(BUILT_IN_CATEGORY_NAMES);
     expect(overrides).toHaveLength(1);
     expect(overrides[0].category).toBe('Coffee & Quick Bites');
     expect(await categoriesByMotive()).toEqual([
@@ -117,7 +117,7 @@ describe('correctMerchantCategory', () => {
     const result = await correctMerchantCategory("Trader Joe's", 'Groceries');
 
     expect(result).toEqual({ ok: true, repaired: 0 });
-    expect(await sheet.readCategoryOverrides(EXPENSE_CATEGORIES)).toEqual([
+    expect(await sheet.readCategoryOverrides(BUILT_IN_CATEGORY_NAMES)).toEqual([
       { merchant: "Trader Joe's", category: 'Groceries', updatedAt: expect.any(String) },
     ]);
   });
@@ -132,7 +132,7 @@ describe('correctMerchantCategory', () => {
       ok: false,
       error: expect.stringContaining('for future expenses'),
     });
-    expect(await sheet.readCategoryOverrides(EXPENSE_CATEGORIES)).toHaveLength(1);
+    expect(await sheet.readCategoryOverrides(BUILT_IN_CATEGORY_NAMES)).toHaveLength(1);
 
     // Retrying is idempotent and finishes the repair.
     expect(await correctMerchantCategory('Las Brumas', 'Dining Out')).toEqual({
@@ -157,15 +157,15 @@ describe('correctMerchantCategory', () => {
     const before = await sheet.readTransactions();
 
     // The action is a public endpoint, so a forged request can send anything.
-    const result = await correctMerchantCategory('Las Brumas', 'Brunch' as ExpenseCategory);
+    const result = await correctMerchantCategory('Las Brumas', 'Brunch' as Category);
 
     expect(result).toEqual({ ok: false, error: expect.stringContaining('Brunch') });
     expect(await sheet.readTransactions()).toEqual(before);
-    expect(await sheet.readCategoryOverrides(EXPENSE_CATEGORIES)).toEqual([]);
+    expect(await sheet.readCategoryOverrides(BUILT_IN_CATEGORY_NAMES)).toEqual([]);
   });
 
   it('accepts a Category added to the Categories sheet by hand', async () => {
-    await sheet.addCategoryByHand({ name: 'Brunch', countsAsSpending: true });
+    await sheet.addCategory({ name: 'Brunch', countsAsSpending: true });
 
     const result = await correctMerchantCategory('Las Brumas', 'Brunch');
 

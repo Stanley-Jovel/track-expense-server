@@ -1,9 +1,10 @@
-import { ParsedTransaction, ExpenseType, ExpenseCategory, CategoryEntry } from '../llm/types';
+import { ParsedTransaction, ExpenseType } from '../llm/types';
+import type { Category, CategoryEntry } from '../categories/category-list';
 import type { CategorySpelling } from '../categories/open-categories';
 
 // A transaction read back from the sheet. `category` is a plain string rather
-// than ExpenseCategory: the sheet is the source of truth and may hold values
-// written before the current category list existed.
+// than a Category: the sheet is the source of truth and may hold values
+// written before the current Category list existed.
 export interface Transaction {
   date: Date;
   motive: string;
@@ -35,7 +36,7 @@ export interface TransactionRewrite {
 /** Replace the Category cell of one existing sheet row. */
 export interface CategoryRewrite {
   row: number;
-  category: ExpenseCategory;
+  category: Category;
 }
 
 /**
@@ -45,7 +46,7 @@ export interface CategoryRewrite {
  */
 export interface SuggestionRewrite {
   row: number;
-  category?: ExpenseCategory;
+  category?: Category;
   suggestedCategory: string;
 }
 
@@ -55,7 +56,7 @@ export interface SuggestionRewrite {
  */
 export interface CategoryOverride {
   merchant: string;
-  category: ExpenseCategory;
+  category: Category;
   /** ISO timestamp of the last save. */
   updatedAt: string;
 }

@@ -1,7 +1,8 @@
 import { POST } from '@/app/api/track-expense/route';
 import { MockSpreadsheetService } from '@/app/services/spreadsheet/mock-service';
 import { SpreadsheetReadError } from '@/app/services/spreadsheet/types';
-import { EXPENSE_CATEGORIES, type ParsedTransaction } from '@/app/services/llm/types';
+import type { ParsedTransaction } from '@/app/services/llm/types';
+import { BUILT_IN_CATEGORY_NAMES } from '@/app/services/categories/category-list';
 
 // The Category list at the POST /api/track-expense seam: ingest reads it from
 // the Categories sheet (mock spreadsheet service) and hands it to a mocked
@@ -49,7 +50,7 @@ beforeEach(() => {
 
 describe('POST /api/track-expense — the Category list', () => {
   it('accepts a Category added to the list by hand', async () => {
-    await sheet.addCategoryByHand({ name: 'Pet Supplies', countsAsSpending: true });
+    await sheet.addCategory({ name: 'Pet Supplies', countsAsSpending: true });
     llmParse = [{ motive: 'PetSmart #0412', amount: 38, type: 'Expense', category: 'Pet Supplies' }];
 
     const { status, body } = await postExpense('PetSmart 38');
@@ -61,7 +62,7 @@ describe('POST /api/track-expense — the Category list', () => {
   });
 
   it('honors a Category Override to a Category added to the list', async () => {
-    await sheet.addCategoryByHand({ name: 'Pet Supplies', countsAsSpending: true });
+    await sheet.addCategory({ name: 'Pet Supplies', countsAsSpending: true });
     await sheet.upsertCategoryOverride({
       merchant: 'Chewy',
       category: 'Pet Supplies',
@@ -85,7 +86,7 @@ describe('POST /api/track-expense — the Category list', () => {
     const { status } = await postExpense('Starbucks 20088 $7');
 
     expect(status).toBe(200);
-    expect(offered).toEqual(EXPENSE_CATEGORIES);
+    expect(offered).toEqual(BUILT_IN_CATEGORY_NAMES);
     expect(await writtenCategories()).toEqual([['Starbucks 20088', 'Coffee & Quick Bites']]);
     expect(logged).toHaveBeenCalled();
   });

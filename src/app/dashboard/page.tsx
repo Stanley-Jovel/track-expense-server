@@ -1,7 +1,6 @@
 import { Metadata } from "next";
 import { Suspense } from "react";
 import { getCategories, getTransactions } from "@/app/services/spreadsheet/cached-transactions";
-import { categoryNames, notSpendingOf } from "@/app/services/llm/types";
 import { DashboardClient, SerializableTransaction } from "./dashboard-client";
 import { RefreshBar } from "./refresh-bar";
 import { listSuggestions } from "./suggestions";
@@ -46,8 +45,7 @@ export default async function DashboardPage() {
         <DashboardClient
           transactions={serializable}
           fetchedAt={fetchedAt}
-          categoryList={categoryNames(categories)}
-          notSpending={notSpendingOf(categories)}
+          categories={categories}
           suggestions={suggestions}
         />
       </Suspense>

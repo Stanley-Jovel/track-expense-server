@@ -3,26 +3,23 @@
 import { revalidatePath, revalidateTag } from 'next/cache';
 import { SpreadsheetServiceFactory, readCategoriesOrBuiltIn } from '@/app/services/spreadsheet';
 import { merchantName, sameMerchant } from '@/app/services/analytics/merchant';
-import {
-  ExpenseCategory,
-  categoryNames,
-  isExpenseCategory,
-} from '@/app/services/llm/types';
+import { Category, CategoryList, categoryList } from '@/app/services/categories/category-list';
+import { SHEET_CACHE_TAGS } from '@/app/services/spreadsheet/cache-tags';
 
 /**
  * Busts both cache layers behind the dashboard — the tagged unstable_cache
- * holding the sheet rows and the ISR copy of /dashboard — so the next render
- * re-reads the spreadsheet.
+ * holding the sheet rows and the Category list, and the ISR copy of
+ * /dashboard — so the next render re-reads the spreadsheet.
  */
 export async function refreshDashboard(): Promise<void> {
-  revalidateTag('sheet-transactions');
+  for (const tag of SHEET_CACHE_TAGS) revalidateTag(tag);
   revalidatePath('/dashboard');
 }
 
 // Server actions are an edge: they validate against the Categories sheet's
 // list, or the built-in list if that sheet can't be read.
-async function loadCategoryNames(): Promise<string[]> {
-  return categoryNames(await readCategoriesOrBuiltIn(SpreadsheetServiceFactory.create()));
+async function loadCategoryList(): Promise<CategoryList> {
+  return categoryList(await readCategoriesOrBuiltIn(SpreadsheetServiceFactory.create()));
 }
 
 export type CorrectionResult =
@@ -39,10 +36,10 @@ export type CorrectionResult =
  */
 export async function correctMerchantCategory(
   merchant: string,
-  category: ExpenseCategory
+  category: Category
 ): Promise<CorrectionResult> {
-  // A server action is a public endpoint: re-check the closed list at runtime.
-  if (!isExpenseCategory(category, await loadCategoryNames())) {
+  // A server action is a public endpoint: re-check the list at runtime.
+  if (!(await loadCategoryList()).has(category)) {
     return { ok: false, error: `"${category}" is not a known Category` };
   }
 
@@ -139,8 +136,8 @@ export async function modifyTransaction(
     }
     // A Category outside the closed list is only allowed if it's the one the
     // row already holds (rows written before the current list existed).
-    const categories = await loadCategoryNames();
-    if (!isExpenseCategory(edit.category, categories) && edit.category !== current.category) {
+    const categories = await loadCategoryList();
+    if (!categories.has(edit.category) && edit.category !== current.category) {
       return { ok: false, error: `"${edit.category}" is not a known Category` };
     }
     const date = new Date(`${edit.day}${current.date.toISOString().slice(10)}`);
@@ -156,7 +153,7 @@ export async function modifyTransaction(
     });
     written = true;
 
-    if (edit.allFromMerchant === true && current.type === 'Expense' && isExpenseCategory(edit.category, categories)) {
+    if (edit.allFromMerchant === true && current.type === 'Expense' && categories.has(edit.category)) {
       const merchant = merchantName(nextMotive);
       const result = await correctMerchantCategory(merchant, edit.category);
       if (!result.ok) {

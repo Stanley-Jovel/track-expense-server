@@ -7,9 +7,10 @@ import {
   SuggestionRewrite,
   TransactionRewrite,
 } from './types';
-import { BUILT_IN_CATEGORIES, CategoryEntry, ParsedTransaction, isExpenseCategory } from '../llm/types';
+import { ParsedTransaction } from '../llm/types';
+import { BUILT_IN_CATEGORIES, CategoryEntry, isCategory } from '../categories/category-list';
 import { sameMerchant } from '../analytics/merchant';
-import type { CategorySpelling } from '../categories/open-categories';
+import { CategorySpelling, withSuggestedCategory } from '../categories/open-categories';
 
 // In-memory sheet. Rows are stored as the sheet would hold them: a fixed
 // timestamp per append and a row number (header is row 1, data from row 2).
@@ -25,15 +26,11 @@ export class MockSpreadsheetService implements SpreadsheetService {
   async appendTransaction(data: ParsedTransaction[]): Promise<void> {
     this.failIfAsked();
     const date = new Date();
-    for (const { suggestedCategory, ...t } of data) {
+    for (const t of data) {
       // A blank F reads back as no suggestion, as it does from the sheet.
-      const suggested = suggestedCategory?.trim();
-      this.rows.push({
-        ...t,
-        ...(suggested ? { suggestedCategory: suggested } : {}),
-        date,
-        row: this.rows.length + 2,
-      });
+      this.rows.push(
+        withSuggestedCategory({ ...t, date, row: this.rows.length + 2 }, t.suggestedCategory)
+      );
     }
   }
 
@@ -57,6 +54,7 @@ export class MockSpreadsheetService implements SpreadsheetService {
     }
   }
 
+  // Tests also call this to stand for a Category added by hand in the sheet.
   async addCategory(entry: CategoryEntry): Promise<void> {
     await this.readCategories();
     this.categories!.push({ ...entry });
@@ -67,13 +65,10 @@ export class MockSpreadsheetService implements SpreadsheetService {
     for (const { row, category, suggestedCategory } of rewrites) {
       const target = this.rows[row - 2];
       if (!target) throw new Error(`No sheet row ${row}`);
-      const rest = { ...target };
-      delete rest.suggestedCategory;
-      this.rows[row - 2] = {
-        ...rest,
-        ...(category !== undefined ? { category } : {}),
-        ...(suggestedCategory.trim() ? { suggestedCategory: suggestedCategory.trim() } : {}),
-      };
+      this.rows[row - 2] = withSuggestedCategory(
+        category !== undefined ? { ...target, category } : target,
+        suggestedCategory
+      );
     }
   }
 
@@ -94,7 +89,7 @@ export class MockSpreadsheetService implements SpreadsheetService {
   async readCategoryOverrides(categories: readonly string[]): Promise<CategoryOverride[]> {
     this.failIfAsked();
     return this.overrides
-      .filter((o) => isExpenseCategory(o.category, categories))
+      .filter((o) => isCategory(o.category, categories))
       .map((o) => ({ ...o }));
   }
 
@@ -129,12 +124,6 @@ export class MockSpreadsheetService implements SpreadsheetService {
   // Test helper methods
   setShouldFail(fail: boolean): void {
     this.shouldFail = fail;
-  }
-
-  /** A Category added by hand in the sheet (seeding it first if missing). */
-  async addCategoryByHand(entry: CategoryEntry): Promise<void> {
-    await this.readCategories();
-    this.categories!.push({ ...entry });
   }
 
   getRows(): SheetTransaction[] {

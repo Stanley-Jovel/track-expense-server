@@ -1,5 +1,5 @@
 import { getCategories, getTransactions } from '@/app/services/spreadsheet/cached-transactions';
-import { categoryNames } from '@/app/services/llm/types';
+import { categoryList } from '@/app/services/categories/category-list';
 import {
   CategorySuggestion,
   groupSuggestions,
@@ -15,5 +15,5 @@ import {
  */
 export async function listSuggestions(): Promise<CategorySuggestion[]> {
   const [rows, categories] = await Promise.all([getTransactions(), getCategories()]);
-  return withHints(groupSuggestions(rows), categoryNames(categories));
+  return withHints(groupSuggestions(rows), categoryList(categories).names);
 }

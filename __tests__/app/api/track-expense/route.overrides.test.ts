@@ -1,7 +1,8 @@
 import { POST } from '@/app/api/track-expense/route';
 import { MockSpreadsheetService } from '@/app/services/spreadsheet/mock-service';
 import { SpreadsheetReadError } from '@/app/services/spreadsheet/types';
-import type { ExpenseCategory, ParsedTransaction } from '@/app/services/llm/types';
+import type { ParsedTransaction } from '@/app/services/llm/types';
+import type { Category } from '@/app/services/categories/category-list';
 
 // Category Overrides at the POST /api/track-expense seam, with mocked LLM and
 // spreadsheet services. A real LLM against the real sheet can't exercise
@@ -37,7 +38,7 @@ async function writtenCategories(): Promise<[string, string][]> {
   return (await sheet.readTransactions()).map((t) => [t.motive, t.category]);
 }
 
-async function overrideMerchant(merchant: string, category: ExpenseCategory) {
+async function overrideMerchant(merchant: string, category: Category) {
   await sheet.upsertCategoryOverride({ merchant, category, updatedAt: '2026-10-12T00:00:00.000Z' });
 }
 

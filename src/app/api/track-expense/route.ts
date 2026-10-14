@@ -7,15 +7,19 @@ import {
   CategoryOverride,
   readCategoriesOrBuiltIn,
 } from '@/app/services/spreadsheet';
-import { ParsedTransaction, categoryNames } from '@/app/services/llm/types';
+import { ParsedTransaction } from '@/app/services/llm/types';
 import { merchantName, sameMerchant } from '@/app/services/analytics/merchant';
-import { CategorySpelling, checkSuggestion } from '@/app/services/categories/open-categories';
+import { categoryList } from '@/app/services/categories/category-list';
+import {
+  CategorySpelling,
+  checkSuggestion,
+  withSuggestedCategory,
+} from '@/app/services/categories/open-categories';
+import { SHEET_CACHE_TAGS } from '@/app/services/spreadsheet/cache-tags';
 
 // Drops a Transaction's suggested Category, so column F stays blank.
 function withoutSuggestion(t: ParsedTransaction): ParsedTransaction {
-  const rest = { ...t };
-  delete rest.suggestedCategory;
-  return rest;
+  return withSuggestedCategory(t);
 }
 
 // A Category Override replaces the LLM's Category for every Expense whose
@@ -46,9 +50,14 @@ function applySuggestionChecks(
   return transactions.map((t) => {
     if (!t.suggestedCategory) return t;
     const check = checkSuggestion(t.suggestedCategory, categories, spellings);
-    if ('file' in check) return withoutSuggestion({ ...t, category: check.file });
-    if ('drop' in check) return withoutSuggestion(t);
-    return { ...t, suggestedCategory: check.suggest };
+    switch (check.kind) {
+      case 'file':
+        return withoutSuggestion({ ...t, category: check.category });
+      case 'drop':
+        return withoutSuggestion(t);
+      case 'suggest':
+        return withSuggestedCategory(t, check.label);
+    }
   });
 }
 
@@ -73,7 +82,7 @@ export async function POST(request: Request) {
     // Ingest is an edge: it decides which Category list the parse and the
     // override check use — the Categories sheet's, or the built-in list if
     // that sheet can't be read (logged, and the Transaction is still logged).
-    const categories = categoryNames(await readCategoriesOrBuiltIn(spreadsheetService));
+    const categories = categoryList(await readCategoriesOrBuiltIn(spreadsheetService)).names;
 
     try {
       const llmParsed = await llmService.parseTransaction(transaction, categories);
@@ -102,7 +111,7 @@ export async function POST(request: Request) {
       // The dashboard caches sheet rows (tagged unstable_cache) and the page
       // itself (ISR); bust both so the new transaction shows up immediately.
       try {
-        revalidateTag('sheet-transactions');
+        for (const tag of SHEET_CACHE_TAGS) revalidateTag(tag);
         revalidatePath('/dashboard');
       } catch {
         // Outside a Next request context (jest calls the handler directly)
