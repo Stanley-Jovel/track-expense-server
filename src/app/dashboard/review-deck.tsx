@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { merchantName } from "@/app/services/analytics/merchant";
 import type { CategorySuggestion } from "@/app/services/categories/open-categories";
-import { approveSuggestion, mergeSuggestion, type ReviewResult } from "./suggestion-actions";
+import { approveSuggestion, foldSuggestion, mergeSuggestion, type ReviewResult } from "./suggestion-actions";
 import { formatUsd } from "./format";
 
 const faint = { color: "var(--ledger-faint)" };
@@ -217,6 +217,15 @@ function SuggestionCard({
       `Couldn't move these into ${into}. Try again.`
     );
 
+  // A Suggestion look-alike: its entries join that Suggestion, answered later.
+  const fold = (into: string) =>
+    answerWith(
+      "hint",
+      () => foldSuggestion({ ...listed, into }),
+      `Couldn't fold these into ${into}. Try again.`
+    );
+
+  const hint = suggestion.hint;
   const count = suggestion.entries.length;
 
   return (
@@ -277,16 +286,20 @@ function SuggestionCard({
       )}
 
       <div className="flex flex-col gap-2">
-        {suggestion.hint && (
+        {hint && (
           <button
-            onClick={() => merge(suggestion.hint!.name, "hint")}
+            onClick={() =>
+              hint.kind === "category" ? merge(hint.name, "hint") : fold(hint.label)
+            }
             disabled={pending}
             className={answer}
             style={rule}
           >
-            {pending && choice === "hint" ? "Moving…" : `No, it's ${suggestion.hint.name}`}
+            {pending && choice === "hint"
+              ? "Moving…"
+              : `No, it's ${hint.kind === "category" ? hint.name : hint.label}`}
             <span className="block text-xs italic" style={faint}>
-              existing category
+              {hint.kind === "category" ? "existing category" : "also suggested"}
             </span>
           </button>
         )}

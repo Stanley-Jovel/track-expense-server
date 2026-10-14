@@ -1,6 +1,6 @@
 # 0008: Folding two waiting suggestions together
 
-status: open
+status: closed (2026-10-14)
 assignee: —
 labels: wayfinder:task, ready-for-agent
 blocked-by: 0006
@@ -18,11 +18,11 @@ Demo: Shell gets "Gas & Fuel" and Chevron gets "Car Fuel". The deck offers "No, 
 
 ## Acceptance criteria
 
-- [ ] The listing function's hint includes the other waiting Suggestions, with a Category winning a tie.
-- [ ] The Fold server action rewrites F on the folded rows to the target's label, records the aliases, skips changed rows, and busts the caches.
-- [ ] At ingest, an `Alias` whose Target is a waiting Suggestion writes that label to F.
-- [ ] Approve rewrites the spellings that pointed at the Suggestion's old label to the approved name.
-- [ ] Tests:
+- [x] The listing function's hint includes the other waiting Suggestions, with a Category winning a tie.
+- [x] The Fold server action rewrites F on the folded rows to the target's label, records the aliases, skips changed rows, and busts the caches.
+- [x] At ingest, an `Alias` whose Target is a waiting Suggestion writes that label to F.
+- [x] Approve rewrites the spellings that pointed at the Suggestion's old label to the approved name.
+- [x] Tests:
   - At the ingest seam: an alias to a Suggestion writes its label to F.
   - At the review seam: a Suggestion look-alike hint, a Category winning a tie, Fold regrouping rows, and Fold followed by Approve under a new name leaving every spelling pointing at the new Category.
-- [ ] Lint, type-check and the full test suite pass.
+- [x] Lint, type-check and the full test suite pass.

@@ -67,8 +67,13 @@ export interface CategorySuggestion {
   hint?: SuggestionHint;
 }
 
-/** The answer "No, it's X": a Category the Suggestion looks like. */
-export type SuggestionHint = { kind: 'category'; name: string };
+/**
+ * The answer "No, it's X": a Category the Suggestion looks like (Merge), or
+ * another waiting Suggestion (Fold).
+ */
+export type SuggestionHint =
+  | { kind: 'category'; name: string }
+  | { kind: 'suggestion'; key: string; label: string };
 
 /**
  * The waiting Category Suggestions in `rows`: every Expense row with a
@@ -180,9 +185,10 @@ function lookAlike(a: string, b: string): number {
 const HINT_THRESHOLD = 0.5;
 
 /**
- * Each Suggestion with its look-alike hint, if it has one: the Category with
- * the highest share of words in common, at 50% or more; on a tie the earlier
- * candidate wins. Only ever offered, never applied: "Pet Insurance" looks
+ * Each Suggestion with its look-alike hint, if it has one: the Category or
+ * other waiting Suggestion with the highest share of words in common, at 50%
+ * or more; on a tie the earlier candidate wins, so a Category beats a
+ * Suggestion. Only ever offered, never applied: "Pet Insurance" looks
  * just as much like Insurance as "Clothes" looks like Clothing.
  */
 export function withHints(
@@ -197,6 +203,10 @@ export function withHints(
     };
     // Categories go first, so a Category wins a tie with anything after.
     for (const name of categories) consider({ kind: 'category', name }, name);
+    for (const other of suggestions) {
+      if (other.key === suggestion.key) continue;
+      consider({ kind: 'suggestion', key: other.key, label: other.label }, other.label);
+    }
     return best ? { ...suggestion, hint: best.hint } : suggestion;
   });
 }

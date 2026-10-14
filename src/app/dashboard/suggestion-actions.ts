@@ -9,6 +9,7 @@ import type {
 import {
   CategorySpelling,
   SpellingOutcome,
+  groupSuggestions,
   normalize,
 } from '@/app/services/categories/open-categories';
 import { refreshDashboard } from './actions';
@@ -82,7 +83,10 @@ function unchangedRows(
  * Expenses already follow it.
  *
  * Every row of a Suggestion normalizes to its key, so the key is its only
- * spelling.
+ * recorded spelling of its own. Spellings folded into it earlier (Aliases
+ * whose Target is its label) follow the same answer: approved under a new
+ * name, merged, dismissed or folded again, they end up where it does instead
+ * of pointing at a label that is no longer waiting.
  */
 async function recordAndRewrite(
   sheet: SpreadsheetService,
@@ -92,12 +96,14 @@ async function recordAndRewrite(
 ): Promise<{ moved: number; skipped: number }> {
   const rows = await sheet.readTransactions();
   const unchanged = unchangedRows(rows, answer);
-  const recorded: CategorySpelling = {
-    spelling: answer.key,
-    ...spelling,
-    updatedAt: new Date().toISOString(),
-  };
-  await sheet.recordCategorySpellings([recorded]);
+  const updatedAt = new Date().toISOString();
+  const folded = (await sheet.readCategorySpellings()).filter(
+    (s) => s.outcome === 'Alias' && s.spelling !== answer.key && normalize(s.target) === answer.key
+  );
+  const recorded: CategorySpelling[] = [answer.key, ...folded.map((s) => s.spelling)].map(
+    (key) => ({ spelling: key, ...spelling, updatedAt })
+  );
+  await sheet.recordCategorySpellings(recorded);
   await sheet.rewriteSuggestions(unchanged.map(rewrite));
   return { moved: unchanged.length, skipped: answer.entries.length - unchanged.length };
 }
@@ -211,5 +217,44 @@ export async function approveSuggestion(
     };
   } finally {
     if (added) await refreshAfter('approveSuggestion');
+  }
+}
+
+/**
+ * Fold a Category Suggestion into another waiting Suggestion ("No, it's X"
+ * on a Suggestion look-alike): record its spelling as an Alias of the
+ * target's label, so later Expenses with it join the target at ingest, and
+ * rewrite its rows' F to that label so they are listed with the target.
+ * Their Category stays as it is until the target is answered.
+ */
+export async function foldSuggestion(
+  answer: ListedSuggestion & { into: string }
+): Promise<ReviewResult> {
+  if (!isListedSuggestion(answer) || typeof answer.into !== 'string') {
+    return { ok: false, error: 'Unknown suggestion.' };
+  }
+  let wrote = false;
+  try {
+    const sheet = SpreadsheetServiceFactory.create();
+    // The target must still be waiting, under the label it was listed with.
+    const target = groupSuggestions(await sheet.readTransactions()).find(
+      (s) => s.label === answer.into && s.key !== answer.key
+    );
+    if (!target) {
+      return { ok: false, error: `${answer.into} is no longer waiting for review.` };
+    }
+    wrote = true;
+    const { moved, skipped } = await recordAndRewrite(
+      sheet,
+      answer,
+      { outcome: 'Alias', target: target.label },
+      (t) => ({ row: t.row, suggestedCategory: target.label })
+    );
+    return { ok: true, moved, skipped };
+  } catch (error) {
+    console.error('foldSuggestion failed:', error);
+    return { ok: false, error: `Couldn't fold these into ${answer.into}. Try again.` };
+  } finally {
+    if (wrote) await refreshAfter('foldSuggestion');
   }
 }
