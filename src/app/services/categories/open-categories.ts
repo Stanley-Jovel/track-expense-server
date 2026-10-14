@@ -172,13 +172,17 @@ function sameWord(a: string, b: string): boolean {
   return common >= 5 && common >= Math.min(a.length, b.length) - 1;
 }
 
-/** The share of words two names have in common: shared / all distinct. */
+/**
+ * The share of words two names have in common: shared words over the word
+ * count of the longer name. "Car Fuel" and "Gas & Fuel" share 1 of 2 (50%);
+ * "Pet Insurance" and "Insurance" share 1 of 2 too.
+ */
 function lookAlike(a: string, b: string): number {
   const A = wordsOf(a);
   const B = wordsOf(b);
   const shared = A.filter((w) => B.some((x) => sameWord(w, x))).length;
-  const all = A.length + B.length - shared;
-  return all === 0 ? 0 : shared / all;
+  const longer = Math.max(A.length, B.length);
+  return longer === 0 ? 0 : shared / longer;
 }
 
 /** A hint is shown at 50% of words in common or more. */

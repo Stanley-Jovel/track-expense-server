@@ -50,6 +50,18 @@ describe('listSuggestions — Suggestion look-alike hints', () => {
     });
   });
 
+  it('hints "Gas & Fuel" for "Car Fuel": one of the two words each has is shared', async () => {
+    await sheet.appendTransaction([
+      { motive: 'Chevron 0412', amount: 45, type: 'Expense', category: 'Local Transportation', suggestedCategory: 'Car Fuel' },
+    ]);
+
+    expect((await suggestion('Car Fuel')).hint).toEqual({
+      kind: 'suggestion',
+      key: 'gas and fuel',
+      label: 'Gas & Fuel',
+    });
+  });
+
   it('hints the Category when a Category and a Suggestion tie', async () => {
     // "Pet Insurance" shares half its words with Insurance and with Pets.
     expect((await suggestion('Pet Insurance')).hint).toEqual({ kind: 'category', name: 'Insurance' });
