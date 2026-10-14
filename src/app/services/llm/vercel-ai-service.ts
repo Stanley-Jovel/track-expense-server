@@ -26,6 +26,13 @@ export class VercelAIService implements LLMApiService {
       throw new InvalidInputError();
     }
 
+    // A $0 (or negative) amount means the model couldn't find one in the
+    // text and filled the field in anyway. Reject it so the next provider
+    // gets a try, and so a made-up amount never reaches the sheet.
+    if (object.parsed_transactions.some((t) => !(t.amount > 0))) {
+      throw new InvalidInputError('No amount found in input');
+    }
+
     return object.parsed_transactions;
   }
 }

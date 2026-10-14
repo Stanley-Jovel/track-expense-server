@@ -36,6 +36,9 @@ export async function POST(request: Request) {
       );
     }
 
+    // The raw text is the only way to diagnose a bad parse after the fact.
+    console.log('[track-expense] input:', JSON.stringify(transaction));
+
     const llmService = LLMServiceFactory.create();
     const spreadsheetService = SpreadsheetServiceFactory.create();
 
