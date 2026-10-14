@@ -60,7 +60,8 @@ export interface SpreadsheetService {
   rewriteTransaction(row: number, rewrite: TransactionRewrite): Promise<void>;
   /** Remove one sheet row entirely; later rows shift up by one. */
   deleteTransactionRow(row: number): Promise<void>;
-  readCategoryOverrides(): Promise<CategoryOverride[]>;
+  /** Overrides whose Category is on `categories`; others are skipped. */
+  readCategoryOverrides(categories: readonly string[]): Promise<CategoryOverride[]>;
   /**
    * Save an override, replacing any existing one for the same Merchant
    * (compared case-insensitively, see sameMerchant).

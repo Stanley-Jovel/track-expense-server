@@ -32,15 +32,19 @@ export function previousWindowKey(key: WindowKey): WindowKey {
   return previousMonthKey(key);
 }
 
-// See GLOSSARY.md: Money Movement is excluded from Spending.
-export const MONEY_MOVEMENT_CATEGORIES = ['Transfers', 'Investments & Savings'];
+/**
+ * The Categories that don't count as Spending (see GLOSSARY.md: Money
+ * Movement). Passed in by the caller so these functions stay pure and never
+ * assume a fixed Category list.
+ */
+export type NotSpending = readonly string[];
 
-export function isMoneyMovement(t: Transaction): boolean {
-  return t.type === 'Expense' && MONEY_MOVEMENT_CATEGORIES.includes(t.category);
+export function isMoneyMovement(t: Transaction, notSpending: NotSpending): boolean {
+  return t.type === 'Expense' && notSpending.includes(t.category);
 }
 
-export function isSpending(t: Transaction): boolean {
-  return t.type === 'Expense' && !isMoneyMovement(t);
+export function isSpending(t: Transaction, notSpending: NotSpending): boolean {
+  return t.type === 'Expense' && !isMoneyMovement(t, notSpending);
 }
 
 export function monthKey(date: Date): MonthKey {
@@ -138,9 +142,10 @@ export interface PaceStats {
 function spendingToPoint(
   transactions: Transaction[],
   filter: DashboardFilter,
+  notSpending: NotSpending,
   elapsedDays: number
 ): number {
-  const rows = filterTransactions(transactions, filter).filter(isSpending);
+  const rows = filterTransactions(transactions, filter).filter((t) => isSpending(t, notSpending));
   if (filter.window === 'all') return sum(rows);
   if (isYearKey(filter.window)) {
     const start = Date.UTC(Number(filter.window), 0, 1);
@@ -153,11 +158,12 @@ function spendingToPoint(
 export function paceStats(
   transactions: Transaction[],
   filter: DashboardFilter,
+  notSpending: NotSpending,
   now: Date
 ): PaceStats {
   const progress = periodProgress(transactions, filter.window, now);
   const current = filterTransactions(transactions, filter);
-  const spendingRows = current.filter(isSpending);
+  const spendingRows = current.filter((t) => isSpending(t, notSpending));
   const spending = sum(spendingRows);
   const dailyAverage = spending / progress.elapsedDays;
 
@@ -165,15 +171,15 @@ export function paceStats(
   let previousAtSamePoint: number | null = null;
   if (filter.window !== 'all') {
     const prevFilter = { ...filter, window: previousWindowKey(filter.window) };
-    previousTotal = sum(filterTransactions(transactions, prevFilter).filter(isSpending));
+    previousTotal = sum(filterTransactions(transactions, prevFilter).filter((t) => isSpending(t, notSpending)));
     previousAtSamePoint = progress.isCurrent
-      ? spendingToPoint(transactions, prevFilter, progress.elapsedDays)
+      ? spendingToPoint(transactions, prevFilter, notSpending, progress.elapsedDays)
       : previousTotal;
   }
 
   return {
     spending,
-    moneyMovement: sum(current.filter(isMoneyMovement)),
+    moneyMovement: sum(current.filter((t) => isMoneyMovement(t, notSpending))),
     entries: spendingRows.length,
     dailyAverage,
     projected: dailyAverage * progress.totalDays,
@@ -199,15 +205,16 @@ export interface PacePoint {
 export function cumulativePace(
   transactions: Transaction[],
   filter: DashboardFilter,
+  notSpending: NotSpending,
   now: Date
 ): PacePoint[] {
   if (filter.window === 'all') return [];
   const progress = periodProgress(transactions, filter.window, now);
-  const rows = filterTransactions(transactions, filter).filter(isSpending);
+  const rows = filterTransactions(transactions, filter).filter((t) => isSpending(t, notSpending));
   const prevRows = filterTransactions(transactions, {
     ...filter,
     window: previousWindowKey(filter.window),
-  }).filter(isSpending);
+  }).filter((t) => isSpending(t, notSpending));
 
   const yearly = isYearKey(filter.window);
   const units = yearly ? 12 : progress.totalDays;
@@ -251,6 +258,7 @@ export interface CategoryMover {
 export function biggestMovers(
   transactions: Transaction[],
   filter: DashboardFilter,
+  notSpending: NotSpending,
   now: Date,
   limit = 4
 ): CategoryMover[] {
@@ -260,7 +268,7 @@ export function biggestMovers(
 
   const totalsByCategory = (f: DashboardFilter, toPoint: boolean) => {
     const totals = new Map<string, number>();
-    let rows = filterTransactions(transactions, f).filter(isSpending);
+    let rows = filterTransactions(transactions, f).filter((t) => isSpending(t, notSpending));
     if (toPoint && progress.isCurrent) {
       if (isYearKey(f.window)) {
         const start = Date.UTC(Number(f.window), 0, 1);
@@ -297,9 +305,10 @@ export interface MerchantTotal {
 export function topMerchants(
   transactions: Transaction[],
   filter: DashboardFilter,
+  notSpending: NotSpending,
   limit = 8
 ): MerchantTotal[] {
-  const rows = filterTransactions(transactions, filter).filter(isSpending);
+  const rows = filterTransactions(transactions, filter).filter((t) => isSpending(t, notSpending));
   const byMerchant = new Map<string, MerchantTotal>();
   for (const t of rows) {
     const merchant = merchantName(t.motive);
@@ -325,9 +334,10 @@ export interface TimePoint {
  */
 export function spendingOverTime(
   transactions: Transaction[],
-  filter: DashboardFilter
+  filter: DashboardFilter,
+  notSpending: NotSpending
 ): TimePoint[] {
-  const spending = filterTransactions(transactions, filter).filter(isSpending);
+  const spending = filterTransactions(transactions, filter).filter((t) => isSpending(t, notSpending));
 
   if (filter.window === 'all' || isYearKey(filter.window)) {
     const keys = isYearKey(filter.window)
@@ -357,9 +367,10 @@ export interface CategorySlice {
 /** Expenses-only (Spending) breakdown, largest first. Money Movement is not a slice. */
 export function categoryBreakdown(
   transactions: Transaction[],
-  filter: DashboardFilter
+  filter: DashboardFilter,
+  notSpending: NotSpending
 ): CategorySlice[] {
-  const spending = filterTransactions(transactions, filter).filter(isSpending);
+  const spending = filterTransactions(transactions, filter).filter((t) => isSpending(t, notSpending));
   const byCategory = new Map<string, CategorySlice>();
   for (const t of spending) {
     const slice = byCategory.get(t.category) ?? {

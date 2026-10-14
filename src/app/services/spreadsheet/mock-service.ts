@@ -6,7 +6,7 @@ import {
   SpreadsheetPermissionError,
   TransactionRewrite,
 } from './types';
-import { ParsedTransaction } from '../llm/types';
+import { ParsedTransaction, isExpenseCategory } from '../llm/types';
 import { sameMerchant } from '../analytics/merchant';
 
 // In-memory sheet. Rows are stored as the sheet would hold them: a fixed
@@ -52,9 +52,11 @@ export class MockSpreadsheetService implements SpreadsheetService {
     this.rows = this.rows.map((t, i) => ({ ...t, row: i + 2 }));
   }
 
-  async readCategoryOverrides(): Promise<CategoryOverride[]> {
+  async readCategoryOverrides(categories: readonly string[]): Promise<CategoryOverride[]> {
     this.failIfAsked();
-    return this.overrides.map((o) => ({ ...o }));
+    return this.overrides
+      .filter((o) => isExpenseCategory(o.category, categories))
+      .map((o) => ({ ...o }));
   }
 
   async upsertCategoryOverride(override: CategoryOverride): Promise<void> {

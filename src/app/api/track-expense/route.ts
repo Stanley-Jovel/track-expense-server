@@ -6,7 +6,7 @@ import {
   SpreadsheetWriteError,
   CategoryOverride,
 } from '@/app/services/spreadsheet';
-import { ParsedTransaction } from '@/app/services/llm/types';
+import { EXPENSE_CATEGORIES, ParsedTransaction } from '@/app/services/llm/types';
 import { merchantName, sameMerchant } from '@/app/services/analytics/merchant';
 
 // A Category Override replaces the LLM's Category for every Expense whose
@@ -42,13 +42,17 @@ export async function POST(request: Request) {
     const llmService = LLMServiceFactory.create();
     const spreadsheetService = SpreadsheetServiceFactory.create();
 
+    // Ingest is an edge: it decides which Category list the parse and the
+    // override check use. For now that is always the built-in list.
+    const categories = EXPENSE_CATEGORIES;
+
     try {
-      const llmParsed = await llmService.parseTransaction(transaction);
+      const llmParsed = await llmService.parseTransaction(transaction, categories);
       // A correction-memory problem must never lose a Transaction: if the
       // overrides can't be read, log it and keep the LLM's Categories.
       let overrides: CategoryOverride[] = [];
       try {
-        overrides = await spreadsheetService.readCategoryOverrides();
+        overrides = await spreadsheetService.readCategoryOverrides(categories);
       } catch (error) {
         console.error('Failed to read Category Overrides; using LLM categories:', error);
       }

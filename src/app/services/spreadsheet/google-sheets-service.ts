@@ -210,13 +210,13 @@ export class GoogleSheetsService implements SpreadsheetService {
     }
   }
 
-  async readCategoryOverrides(): Promise<CategoryOverride[]> {
+  async readCategoryOverrides(categories: readonly string[]): Promise<CategoryOverride[]> {
     try {
       const { rows } = await this.readOverrideRows({ createIfMissing: false });
       // The sheet is hand-editable, so a row may hold a Category the rest of
       // the app doesn't know; such a row is skipped (the LLM's guess is safer).
       return rows.flatMap(([merchant, category, updatedAt]) =>
-        typeof merchant === 'string' && merchant && isExpenseCategory(category)
+        typeof merchant === 'string' && merchant && isExpenseCategory(category, categories)
           ? [{ merchant, category, updatedAt: String(updatedAt ?? '') }]
           : []
       );

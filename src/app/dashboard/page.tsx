@@ -1,6 +1,7 @@
 import { Metadata } from "next";
 import { Suspense } from "react";
 import { getTransactions } from "@/app/services/spreadsheet/cached-transactions";
+import { BUILT_IN_NOT_SPENDING, EXPENSE_CATEGORIES } from "@/app/services/llm/types";
 import { DashboardClient, SerializableTransaction } from "./dashboard-client";
 import { RefreshBar } from "./refresh-bar";
 
@@ -35,7 +36,14 @@ export default async function DashboardPage() {
       <RefreshBar fetchedAt={fetchedAt} />
       {/* useSearchParams in the client component needs a Suspense boundary. */}
       <Suspense>
-        <DashboardClient transactions={serializable} fetchedAt={fetchedAt} />
+        {/* The page is an edge: it decides the Category list and which
+            Categories don't count as Spending. For now, the built-in ones. */}
+        <DashboardClient
+          transactions={serializable}
+          fetchedAt={fetchedAt}
+          categoryList={EXPENSE_CATEGORIES}
+          notSpending={BUILT_IN_NOT_SPENDING}
+        />
       </Suspense>
     </div>
   );

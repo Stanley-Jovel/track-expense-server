@@ -40,11 +40,21 @@ export const EXPENSE_CATEGORIES = [
   'Income',
 ] as const;
 
-export type ExpenseCategory = (typeof EXPENSE_CATEGORIES)[number];
+// The built-in Categories that don't count as Spending (Money Movement — see
+// GLOSSARY.md). Income is excluded from Spending by its type, not by this set.
+export const BUILT_IN_NOT_SPENDING: readonly string[] = ['Transfers', 'Investments & Savings'];
 
-/** Whether `category` is one of the fixed EXPENSE_CATEGORIES. */
-export function isExpenseCategory(category: unknown): category is ExpenseCategory {
-  return EXPENSE_CATEGORIES.some((c) => c === category);
+// A Category is any name on the Category list the caller passes in. The
+// built-in list above is only a default the edges (ingest, the dashboard
+// page, server actions) hand down; nothing else reads it directly.
+export type ExpenseCategory = string;
+
+/** Whether `category` is one of the given `categories`. */
+export function isExpenseCategory(
+  category: unknown,
+  categories: readonly string[]
+): category is ExpenseCategory {
+  return categories.some((c) => c === category);
 }
 
 export interface ParsedTransaction {
@@ -55,7 +65,7 @@ export interface ParsedTransaction {
 }
 
 export interface LLMApiService {
-  parseTransaction(text: string): Promise<ParsedTransaction[]>;
+  parseTransaction(text: string, categories: readonly string[]): Promise<ParsedTransaction[]>;
 }
 
 export class InvalidInputError extends Error {
@@ -65,18 +75,24 @@ export class InvalidInputError extends Error {
   }
 }
 
-export const ParsedTransactionsSchema = z.object({
-  parsed_transactions: z.array(
-    z.object({
-      motive: z.string(),
-      amount: z.number(),
-      type: z.enum(['Income', 'Expense']),
-      category: z.enum(EXPENSE_CATEGORIES),
-    })
-  ),
-});
+/** The structured-output schema, its Category enum built from `categories`. */
+export function parsedTransactionsSchema(categories: readonly string[]) {
+  return z.object({
+    parsed_transactions: z.array(
+      z.object({
+        motive: z.string(),
+        amount: z.number(),
+        type: z.enum(['Income', 'Expense']),
+        // z.enum needs a non-empty tuple; the list always has at least Income.
+        category: z.enum(categories as [string, ...string[]]),
+      })
+    ),
+  });
+}
 
-export const SYSTEM_PROMPT = `You are a financial transaction parser. Parse the input text into structured data.
+/** The system prompt, its allowed list built from `categories`. */
+export function systemPrompt(categories: readonly string[]): string {
+  return `You are a financial transaction parser. Parse the input text into structured data.
 The input text may contain one or more transactions.
 
 If the input cannot be interpreted as one or more financial transactions, return an empty parsed_transactions array.
@@ -84,4 +100,5 @@ If the input cannot be interpreted as one or more financial transactions, return
 You MUST set \`category\` to exactly one of the values listed below. Do not invent, translate, abbreviate, or pluralize. If no category is a clear fit, choose the closest one — never leave it blank and never return a value outside the list.
 
 Allowed categories:
-- ${EXPENSE_CATEGORIES.join('\n- ')}`;
+- ${categories.join('\n- ')}`;
+}

@@ -3,7 +3,11 @@
 import { revalidatePath, revalidateTag } from 'next/cache';
 import { SpreadsheetServiceFactory } from '@/app/services/spreadsheet';
 import { merchantName, sameMerchant } from '@/app/services/analytics/merchant';
-import { ExpenseCategory, isExpenseCategory } from '@/app/services/llm/types';
+import {
+  EXPENSE_CATEGORIES,
+  ExpenseCategory,
+  isExpenseCategory,
+} from '@/app/services/llm/types';
 
 /**
  * Busts both cache layers behind the dashboard — the tagged unstable_cache
@@ -32,7 +36,7 @@ export async function correctMerchantCategory(
   category: ExpenseCategory
 ): Promise<CorrectionResult> {
   // A server action is a public endpoint: re-check the closed list at runtime.
-  if (!isExpenseCategory(category)) {
+  if (!isExpenseCategory(category, EXPENSE_CATEGORIES)) {
     return { ok: false, error: `"${category}" is not a known Category` };
   }
 
@@ -129,7 +133,7 @@ export async function modifyTransaction(
     }
     // A Category outside the closed list is only allowed if it's the one the
     // row already holds (rows written before the current list existed).
-    if (!isExpenseCategory(edit.category) && edit.category !== current.category) {
+    if (!isExpenseCategory(edit.category, EXPENSE_CATEGORIES) && edit.category !== current.category) {
       return { ok: false, error: `"${edit.category}" is not a known Category` };
     }
     const date = new Date(`${edit.day}${current.date.toISOString().slice(10)}`);
@@ -145,7 +149,7 @@ export async function modifyTransaction(
     });
     written = true;
 
-    if (edit.allFromMerchant === true && current.type === 'Expense' && isExpenseCategory(edit.category)) {
+    if (edit.allFromMerchant === true && current.type === 'Expense' && isExpenseCategory(edit.category, EXPENSE_CATEGORIES)) {
       const merchant = merchantName(nextMotive);
       const result = await correctMerchantCategory(merchant, edit.category);
       if (!result.ok) {

@@ -44,10 +44,16 @@ const PAGE_SIZE = 25;
 export function DashboardClient({
   transactions: raw,
   fetchedAt,
+  categoryList,
+  notSpending,
 }: {
   transactions: SerializableTransaction[];
   /** Server render time; the deterministic "now" for pace and projections. */
   fetchedAt: number;
+  /** The Category list Modify offers. */
+  categoryList: readonly string[];
+  /** Categories that don't count as Spending (Money Movement). */
+  notSpending: readonly string[];
 }) {
   const transactions = useMemo<SheetTransaction[]>(
     () => raw.map((t) => ({ ...t, date: new Date(t.date) })),
@@ -106,28 +112,28 @@ export function DashboardClient({
   const unit = yearly ? "year" : "month";
 
   const stats = useMemo(
-    () => paceStats(transactions, filter, now),
-    [transactions, filter, now]
+    () => paceStats(transactions, filter, notSpending, now),
+    [transactions, filter, notSpending, now]
   );
   const pace = useMemo(
-    () => cumulativePace(transactions, filter, now),
-    [transactions, filter, now]
+    () => cumulativePace(transactions, filter, notSpending, now),
+    [transactions, filter, notSpending, now]
   );
   const trend = useMemo(
-    () => (mode === "all" ? spendingOverTime(transactions, filter) : []),
-    [transactions, filter, mode]
+    () => (mode === "all" ? spendingOverTime(transactions, filter, notSpending) : []),
+    [transactions, filter, notSpending, mode]
   );
   const movers = useMemo(
-    () => biggestMovers(transactions, filter, now),
-    [transactions, filter, now]
+    () => biggestMovers(transactions, filter, notSpending, now),
+    [transactions, filter, notSpending, now]
   );
   const breakdown = useMemo(
-    () => categoryBreakdown(transactions, filter),
-    [transactions, filter]
+    () => categoryBreakdown(transactions, filter, notSpending),
+    [transactions, filter, notSpending]
   );
   const merchants = useMemo(
-    () => topMerchants(transactions, filter),
-    [transactions, filter]
+    () => topMerchants(transactions, filter, notSpending),
+    [transactions, filter, notSpending]
   );
 
   const listed = useMemo(() => {
@@ -530,6 +536,7 @@ export function DashboardClient({
                 motive={t.motive}
                 merchant={t.merchant}
                 category={t.category}
+                categories={categoryList}
                 amount={t.amount}
                 type={t.type}
                 date={t.date}

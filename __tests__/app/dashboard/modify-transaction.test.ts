@@ -1,6 +1,7 @@
 import { revalidatePath, revalidateTag } from 'next/cache';
 import { MockSpreadsheetService } from '@/app/services/spreadsheet/mock-service';
 import { modifyTransaction, TransactionEdit } from '@/app/dashboard/actions';
+import { EXPENSE_CATEGORIES } from '@/app/services/llm/types';
 
 const sheet = new MockSpreadsheetService();
 jest.mock('@/app/services/spreadsheet/factory', () => ({
@@ -59,7 +60,7 @@ describe('modifyTransaction', () => {
       date: new Date('2026-10-07T14:30:00.000Z'),
     });
     expect([after[0], after[2], after[3]]).toEqual([before[0], before[2], before[3]]);
-    expect(await sheet.readCategoryOverrides()).toEqual([]);
+    expect(await sheet.readCategoryOverrides(EXPENSE_CATEGORIES)).toEqual([]);
   });
 
   it('busts the dashboard caches after a write', async () => {
@@ -78,7 +79,7 @@ describe('modifyTransaction', () => {
     expect(result).toEqual({ ok: true });
     const categories = (await sheet.readTransactions()).map((t) => t.category);
     expect(categories).toEqual(['Dining Out', 'Shopping — General', 'Dining Out', 'Income']);
-    expect(await sheet.readCategoryOverrides()).toEqual([
+    expect(await sheet.readCategoryOverrides(EXPENSE_CATEGORIES)).toEqual([
       expect.objectContaining({ merchant: 'Las Brumas', category: 'Dining Out' }),
     ]);
   });
@@ -90,7 +91,7 @@ describe('modifyTransaction', () => {
     });
 
     expect(result).toEqual({ ok: true });
-    expect(await sheet.readCategoryOverrides()).toEqual([]);
+    expect(await sheet.readCategoryOverrides(EXPENSE_CATEGORIES)).toEqual([]);
   });
 
   it.each<[string, Partial<TransactionEdit>]>([

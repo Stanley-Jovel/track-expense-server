@@ -1,6 +1,6 @@
 import { MockLanguageModelV3 } from 'ai/test';
 import { VercelAIService } from '@/app/services/llm/vercel-ai-service';
-import { InvalidInputError } from '@/app/services/llm/types';
+import { EXPENSE_CATEGORIES, InvalidInputError } from '@/app/services/llm/types';
 
 // A model that answers every prompt with `parsed_transactions`.
 function modelReturning(parsed_transactions: unknown[]) {
@@ -28,19 +28,19 @@ describe('VercelAIService', () => {
   it('returns the parsed transactions', async () => {
     const svc = new VercelAIService(modelReturning([expense(1.5)]), 'mock');
 
-    await expect(svc.parseTransaction('Dollarcity $1.50')).resolves.toEqual([expense(1.5)]);
+    await expect(svc.parseTransaction('Dollarcity $1.50', EXPENSE_CATEGORIES)).resolves.toEqual([expense(1.5)]);
   });
 
   it('rejects a $0 amount as invalid input instead of logging it', async () => {
     const svc = new VercelAIService(modelReturning([expense(0)]), 'mock');
 
-    await expect(svc.parseTransaction('Dollarcity')).rejects.toBeInstanceOf(InvalidInputError);
+    await expect(svc.parseTransaction('Dollarcity', EXPENSE_CATEGORIES)).rejects.toBeInstanceOf(InvalidInputError);
   });
 
   it('rejects a batch if any transaction has a non-positive amount', async () => {
     const svc = new VercelAIService(modelReturning([expense(1.5), expense(-2)]), 'mock');
 
-    await expect(svc.parseTransaction('Dollarcity $1.50')).rejects.toBeInstanceOf(InvalidInputError);
+    await expect(svc.parseTransaction('Dollarcity $1.50', EXPENSE_CATEGORIES)).rejects.toBeInstanceOf(InvalidInputError);
   });
 });
 
@@ -51,7 +51,7 @@ describe('VercelAIService provider options', () => {
       deepseek: { thinking: { type: 'disabled' } },
     });
 
-    await svc.parseTransaction('Dollarcity $1.50');
+    await svc.parseTransaction('Dollarcity $1.50', EXPENSE_CATEGORIES);
 
     expect(model.doGenerateCalls[0].providerOptions).toEqual({
       deepseek: { thinking: { type: 'disabled' } },

@@ -1,5 +1,5 @@
 import { FallbackLLMService, NamedLLMService } from '@/app/services/llm/fallback-service';
-import { InvalidInputError, ParsedTransaction } from '@/app/services/llm/types';
+import { EXPENSE_CATEGORIES, InvalidInputError, ParsedTransaction } from '@/app/services/llm/types';
 
 const TXN: ParsedTransaction = {
   motive: 'Coffee',
@@ -35,7 +35,7 @@ describe('FallbackLLMService', () => {
     const second = ok('deepseek');
     const svc = new FallbackLLMService([first, second]);
 
-    await expect(svc.parseTransaction('Starbucks coffee $7')).resolves.toEqual([TXN]);
+    await expect(svc.parseTransaction('Starbucks coffee $7', EXPENSE_CATEGORIES)).resolves.toEqual([TXN]);
     expect(first.calls()).toBe(1);
     expect(second.calls()).toBe(0);
   });
@@ -44,14 +44,14 @@ describe('FallbackLLMService', () => {
     const chain = [broken('groq'), broken('deepseek'), broken('mistral'), ok('openai')];
     const svc = new FallbackLLMService(chain);
 
-    await expect(svc.parseTransaction('Walmart groceries $52')).resolves.toEqual([TXN]);
+    await expect(svc.parseTransaction('Walmart groceries $52', EXPENSE_CATEGORIES)).resolves.toEqual([TXN]);
     for (const p of chain) expect(p.calls()).toBe(1);
   });
 
   it('throws "All LLM providers failed" when every provider errors', async () => {
     const svc = new FallbackLLMService([broken('groq'), broken('deepseek')]);
 
-    await expect(svc.parseTransaction('Whole Foods $87')).rejects.toThrow(
+    await expect(svc.parseTransaction('Whole Foods $87', EXPENSE_CATEGORIES)).rejects.toThrow(
       'All LLM providers failed'
     );
   });
@@ -62,7 +62,7 @@ describe('FallbackLLMService', () => {
     });
     const svc = new FallbackLLMService([invalid]);
 
-    await expect(svc.parseTransaction('asdfgh')).rejects.toBeInstanceOf(InvalidInputError);
+    await expect(svc.parseTransaction('asdfgh', EXPENSE_CATEGORIES)).rejects.toBeInstanceOf(InvalidInputError);
   });
 
   it('requires at least one provider', () => {

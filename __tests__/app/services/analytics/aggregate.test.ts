@@ -15,6 +15,7 @@ import {
 } from '@/app/services/analytics/aggregate';
 import { merchantName } from '@/app/services/analytics/merchant';
 import { Transaction } from '@/app/services/spreadsheet/types';
+import { BUILT_IN_NOT_SPENDING } from '@/app/services/llm/types';
 
 const tx = (
   iso: string,
@@ -91,32 +92,32 @@ describe('paceStats — Spending per the glossary', () => {
   ];
 
   it('excludes Transfers and Investments & Savings from spending', () => {
-    const stats = paceStats(data, JAN, NOW);
+    const stats = paceStats(data, JAN, BUILT_IN_NOT_SPENDING, NOW);
     expect(stats.spending).toBe(105);
     expect(stats.moneyMovement).toBe(2500);
     expect(stats.entries).toBe(2);
   });
 
   it('computes Daily Average and Projected Spend from elapsed days', () => {
-    const stats = paceStats(data, JAN, NOW);
+    const stats = paceStats(data, JAN, BUILT_IN_NOT_SPENDING, NOW);
     expect(stats.dailyAverage).toBeCloseTo(105 / 20);
     expect(stats.projected).toBeCloseTo((105 / 20) * 31);
   });
 
   it('cuts the previous window to the same elapsed span when current', () => {
-    const stats = paceStats(data, JAN, NOW);
+    const stats = paceStats(data, JAN, BUILT_IN_NOT_SPENDING, NOW);
     expect(stats.previousAtSamePoint).toBe(40); // Dec 28 falls after day 20
     expect(stats.previousTotal).toBe(100);
   });
 
   it('uses the full previous window for complete windows', () => {
-    const stats = paceStats(data, JAN, new Date('2026-03-01T00:00:00Z'));
+    const stats = paceStats(data, JAN, BUILT_IN_NOT_SPENDING, new Date('2026-03-01T00:00:00Z'));
     expect(stats.previousAtSamePoint).toBe(100);
     expect(stats.projected).toBeCloseTo(stats.spending);
   });
 
   it("has no previous figures for 'all'", () => {
-    const stats = paceStats(data, ALL, NOW);
+    const stats = paceStats(data, ALL, BUILT_IN_NOT_SPENDING, NOW);
     expect(stats.previousTotal).toBeNull();
     expect(stats.previousAtSamePoint).toBeNull();
     expect(stats.spending).toBe(205);
@@ -132,7 +133,7 @@ describe('cumulativePace', () => {
   ];
 
   it('accumulates by day and nulls out days past now in a current month', () => {
-    const points = cumulativePace(data, JAN, NOW);
+    const points = cumulativePace(data, JAN, BUILT_IN_NOT_SPENDING, NOW);
     expect(points).toHaveLength(31);
     expect(points[3]).toEqual({ unit: 4, current: 0, previous: 0 });
     expect(points[4]).toEqual({ unit: 5, current: 10, previous: 0 });
@@ -145,6 +146,7 @@ describe('cumulativePace', () => {
     const points = cumulativePace(
       data,
       { ...ALL, window: '2026' },
+      BUILT_IN_NOT_SPENDING,
       new Date('2026-03-05T00:00:00Z')
     );
     expect(points).toHaveLength(12);
@@ -153,7 +155,7 @@ describe('cumulativePace', () => {
   });
 
   it("is empty for 'all'", () => {
-    expect(cumulativePace(data, ALL, NOW)).toEqual([]);
+    expect(cumulativePace(data, ALL, BUILT_IN_NOT_SPENDING, NOW)).toEqual([]);
   });
 });
 
@@ -167,14 +169,14 @@ describe('biggestMovers', () => {
   ];
 
   it('compares the same elapsed span of the previous window, sorted by |delta|', () => {
-    expect(biggestMovers(data, JAN, NOW)).toEqual([
+    expect(biggestMovers(data, JAN, BUILT_IN_NOT_SPENDING, NOW)).toEqual([
       { category: 'Groceries', current: 100, previous: 30, delta: 70 },
       { category: 'Travel', current: 0, previous: 25, delta: -25 },
     ]);
   });
 
   it("is empty for 'all'", () => {
-    expect(biggestMovers(data, ALL, NOW)).toEqual([]);
+    expect(biggestMovers(data, ALL, BUILT_IN_NOT_SPENDING, NOW)).toEqual([]);
   });
 });
 
@@ -215,7 +217,7 @@ describe('topMerchants', () => {
       tx('2026-01-03T00:00:00Z', 20, { motive: 'Shell' }),
       tx('2026-01-04T00:00:00Z', 9999, { motive: 'Vanguard', category: 'Investments & Savings' }),
     ];
-    expect(topMerchants(data, JAN, 2)).toEqual([
+    expect(topMerchants(data, JAN, BUILT_IN_NOT_SPENDING, 2)).toEqual([
       { merchant: 'Safeway', amount: 25, count: 2 },
       { merchant: 'Shell', amount: 20, count: 1 },
     ]);
@@ -241,7 +243,8 @@ describe('spendingOverTime', () => {
   it('zero-fills every day of a month window', () => {
     const series = spendingOverTime(
       [tx('2026-01-05T10:00:00Z', 10), tx('2026-01-05T12:00:00Z', 5), tx('2026-01-31T00:00:00Z', 7)],
-      JAN
+      JAN,
+      BUILT_IN_NOT_SPENDING
     );
     expect(series).toHaveLength(31);
     expect(series[4]).toEqual({ label: '5', amount: 15 });
@@ -250,13 +253,14 @@ describe('spendingOverTime', () => {
   });
 
   it('handles leap February', () => {
-    expect(spendingOverTime([tx('2028-02-29T00:00:00Z', 1)], { ...ALL, window: '2028-02' })).toHaveLength(29);
+    expect(spendingOverTime([tx('2028-02-29T00:00:00Z', 1)], { ...ALL, window: '2028-02' }, BUILT_IN_NOT_SPENDING)).toHaveLength(29);
   });
 
   it('buckets by month for all-time and excludes money movement', () => {
     const series = spendingOverTime(
       [tx('2025-12-01T00:00:00Z', 10), tx('2026-01-01T00:00:00Z', 99, { category: 'Transfers' })],
-      ALL
+      ALL,
+      BUILT_IN_NOT_SPENDING
     );
     expect(series).toEqual([
       { label: '2025-12', amount: 10 },
@@ -267,7 +271,8 @@ describe('spendingOverTime', () => {
   it('buckets the trend into all 12 months of a year window, zero-filled', () => {
     const series = spendingOverTime(
       [tx('2026-01-05T00:00:00Z', 100), tx('2026-06-05T00:00:00Z', 60)],
-      { ...ALL, window: '2026' }
+      { ...ALL, window: '2026' },
+      BUILT_IN_NOT_SPENDING
     );
     expect(series).toHaveLength(12);
     expect(series[0]).toEqual({ label: '2026-01', amount: 100 });
@@ -286,7 +291,8 @@ describe('categoryBreakdown', () => {
         tx('2026-01-04T00:00:00Z', 999, { category: 'Transfers' }),
         tx('2026-01-05T00:00:00Z', 999, { type: 'Income', category: 'Income' }),
       ],
-      JAN
+      JAN,
+      BUILT_IN_NOT_SPENDING
     );
     expect(slices).toEqual([
       { category: 'Travel', amount: 50, count: 1 },

@@ -1,4 +1,5 @@
 import { GoogleSheetsService } from '@/app/services/spreadsheet/google-sheets-service';
+import { EXPENSE_CATEGORIES } from '@/app/services/llm/types';
 
 // The real GoogleSheetsService against a stubbed `sheets` client: proves which
 // ranges it reads and writes without touching any real spreadsheet.
@@ -199,7 +200,7 @@ describe('readCategoryOverrides', () => {
   it('reads a missing sheet as no overrides, without creating it', async () => {
     sheetTitles(TX);
 
-    expect(await service.readCategoryOverrides()).toEqual([]);
+    expect(await service.readCategoryOverrides(EXPENSE_CATEGORIES)).toEqual([]);
     expect(api.values.get).not.toHaveBeenCalled();
     expect(api.batchUpdate).not.toHaveBeenCalled();
   });
@@ -211,7 +212,7 @@ describe('readCategoryOverrides', () => {
       ['Starbucks', 'Coffee & Quick Bites', 'y'],
     ]);
 
-    expect(await service.readCategoryOverrides()).toEqual([
+    expect(await service.readCategoryOverrides(EXPENSE_CATEGORIES)).toEqual([
       { merchant: 'Starbucks', category: 'Coffee & Quick Bites', updatedAt: 'y' },
     ]);
   });

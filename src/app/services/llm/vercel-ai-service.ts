@@ -3,8 +3,8 @@ import {
   InvalidInputError,
   LLMApiService,
   ParsedTransaction,
-  ParsedTransactionsSchema,
-  SYSTEM_PROMPT,
+  parsedTransactionsSchema,
+  systemPrompt,
 } from './types';
 
 type ProviderOptions = Parameters<typeof generateObject>[0]['providerOptions'];
@@ -16,11 +16,14 @@ export class VercelAIService implements LLMApiService {
     private readonly providerOptions?: ProviderOptions
   ) {}
 
-  async parseTransaction(text: string): Promise<ParsedTransaction[]> {
+  async parseTransaction(
+    text: string,
+    categories: readonly string[]
+  ): Promise<ParsedTransaction[]> {
     const { object } = await generateObject({
       model: this.model,
-      schema: ParsedTransactionsSchema,
-      system: SYSTEM_PROMPT,
+      schema: parsedTransactionsSchema(categories),
+      system: systemPrompt(categories),
       prompt: text,
       temperature: 0.1,
       providerOptions: this.providerOptions,

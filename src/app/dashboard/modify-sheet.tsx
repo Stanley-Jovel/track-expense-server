@@ -3,7 +3,6 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
-import { EXPENSE_CATEGORIES } from "@/app/services/llm/types";
 import { merchantName } from "@/app/services/analytics/merchant";
 import { modifyTransaction } from "./actions";
 
@@ -26,6 +25,7 @@ export function ModifySheet({
   motive,
   merchant,
   category,
+  categories,
   amount,
   type,
   date,
@@ -35,6 +35,8 @@ export function ModifySheet({
   motive: string;
   merchant: string;
   category: string;
+  /** The Category list to choose from. */
+  categories: readonly string[];
   amount: number;
   type: "Income" | "Expense";
   date: Date;
@@ -144,10 +146,10 @@ export function ModifySheet({
                 className={`${bare} appearance-none`}
               >
                 {/* A row may hold a Category from before the current list. */}
-                {!EXPENSE_CATEGORIES.some((c) => c === category) && (
+                {!categories.some((c) => c === category) && (
                   <option value={category}>{category}</option>
                 )}
-                {EXPENSE_CATEGORIES.map((c) => (
+                {categories.map((c) => (
                   <option key={c} value={c}>
                     {c}
                   </option>
