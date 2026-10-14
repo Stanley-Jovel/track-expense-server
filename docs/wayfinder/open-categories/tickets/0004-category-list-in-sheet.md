@@ -1,6 +1,6 @@
 # 0004: The Category list lives in the Categories sheet
 
-status: open
+status: closed (2026-10-14)
 assignee: —
 labels: wayfinder:task, ready-for-agent
 blocked-by: 0003
@@ -13,12 +13,12 @@ Demo: add a Category by hand in the sheet. The LLM can now choose it, and the Mo
 
 ## Acceptance criteria
 
-- [ ] The spreadsheet service, both real and mock, reads the Categories, creating and seeding the sheet when it's missing.
-- [ ] Ingest, the dashboard and the server actions use the list from the sheet.
-- [ ] Tests at the ingest seam (the route with a mocked LLM and the mock service):
+- [x] The spreadsheet service, both real and mock, reads the Categories, creating and seeding the sheet when it's missing.
+- [x] Ingest, the dashboard and the server actions use the list from the sheet.
+- [x] Tests at the ingest seam (the route with a mocked LLM and the mock service):
   - a Category added to the list is accepted
   - when the Categories read fails, the built-in list is used and the Transaction is still logged
-- [ ] Aggregate test: a Category flagged as not Spending is excluded from Spending.
-- [ ] Right after seeding, the dashboard's Spending totals are identical to before.
-- [ ] GLOSSARY.md: Category now says the list lives in the `Categories` sheet and grows only by approval, and the wrong count (26) is fixed.
-- [ ] Lint, type-check and the full test suite pass.
+- [x] Aggregate test: a Category flagged as not Spending is excluded from Spending.
+- [x] Right after seeding, the dashboard's Spending totals are identical to before.
+- [x] GLOSSARY.md: Category now says the list lives in the `Categories` sheet and grows only by approval, and the wrong count (26) is fixed.
+- [x] Lint, type-check and the full test suite pass.
