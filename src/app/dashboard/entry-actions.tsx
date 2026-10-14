@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useTransition, type ReactNode } from "react";
+import { useEffect, useRef, useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { deleteTransaction } from "./actions";
 import { formatUsd } from "./format";
@@ -12,8 +12,10 @@ const TRAY = 88;
  * An entry that slides left to reveal its actions (iOS-style). Only Delete
  * for now. A horizontal drag moves the entry; a vertical one is left to the
  * page so scrolling still works. Released past half the tray it stays open;
- * a tap on an open entry closes it. The tray's button opens when it gets
- * keyboard focus, so the action is reachable without swiping.
+ * a tap on an open entry closes it. On desktop a mouse drag works the same,
+ * and so does a two-finger horizontal swipe on a trackpad (wheel events).
+ * The tray's button opens when it gets keyboard focus, so the action is
+ * reachable without swiping.
  */
 export function SwipeRow({
   open,
@@ -40,9 +42,41 @@ export function SwipeRow({
   // Set when a gesture moved the entry, so the click that ends it doesn't
   // also open the amount editor or Category picker underneath.
   const swallowClick = useRef(false);
+  const surface = useRef<HTMLDivElement>(null);
 
   const rest = open ? -TRAY : 0;
   const offset = drag ?? rest;
+
+  // Trackpad swipes arrive as wheel events with no "end" event, so the entry
+  // follows deltaX and settles once the events stop. React's onWheel is
+  // passive and can't preventDefault, which is needed here to keep the
+  // browser from treating the swipe as back/forward navigation.
+  const latest = useRef({ open, onOpenChange });
+  latest.current = { open, onOpenChange };
+  useEffect(() => {
+    const node = surface.current;
+    if (!node) return;
+    let wheelOffset: number | null = null;
+    let settle: ReturnType<typeof setTimeout> | undefined;
+    const onWheel = (e: WheelEvent) => {
+      if (wheelOffset === null && Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return;
+      e.preventDefault();
+      const base = wheelOffset ?? (latest.current.open ? -TRAY : 0);
+      wheelOffset = Math.max(-TRAY * 1.25, Math.min(0, base - e.deltaX));
+      setDrag(wheelOffset);
+      clearTimeout(settle);
+      settle = setTimeout(() => {
+        latest.current.onOpenChange(wheelOffset! < -TRAY / 2);
+        wheelOffset = null;
+        setDrag(null);
+      }, 120);
+    };
+    node.addEventListener("wheel", onWheel, { passive: false });
+    return () => {
+      node.removeEventListener("wheel", onWheel);
+      clearTimeout(settle);
+    };
+  }, []);
 
   return (
     <div className="relative overflow-hidden">
@@ -60,15 +94,21 @@ export function SwipeRow({
         </button>
       </div>
       <div
+        ref={surface}
         className="relative"
         style={{
+          // Keep a mouse drag from selecting the entry's text.
+          userSelect: drag === null ? undefined : "none",
           background: "var(--ledger-paper)",
           transform: `translateX(${offset}px)`,
           transition: drag === null ? "transform 180ms ease-out" : "none",
           touchAction: "pan-y",
+          overscrollBehaviorX: "none",
         }}
         onPointerDown={(e) => {
           if (e.pointerType === "mouse" && e.button !== 0) return;
+          // Don't start a gesture from inside the open amount field.
+          if ((e.target as HTMLElement).closest("input")) return;
           gesture.current = { x: e.clientX, y: e.clientY, base: rest, axis: null };
           swallowClick.current = false;
         }}
@@ -80,7 +120,10 @@ export function SwipeRow({
           if (g.axis === null) {
             if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
             g.axis = Math.abs(dx) > Math.abs(dy) ? "x" : "y";
-            if (g.axis === "x") e.currentTarget.setPointerCapture(e.pointerId);
+            if (g.axis === "x") {
+              e.currentTarget.setPointerCapture(e.pointerId);
+              window.getSelection()?.removeAllRanges();
+            }
           }
           if (g.axis !== "x") return;
           swallowClick.current = true;
