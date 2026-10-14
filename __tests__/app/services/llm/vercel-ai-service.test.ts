@@ -43,3 +43,18 @@ describe('VercelAIService', () => {
     await expect(svc.parseTransaction('Dollarcity $1.50')).rejects.toBeInstanceOf(InvalidInputError);
   });
 });
+
+describe('VercelAIService provider options', () => {
+  it('passes its provider options to the model call', async () => {
+    const model = modelReturning([expense(1.5)]);
+    const svc = new VercelAIService(model, 'deepseek', {
+      deepseek: { thinking: { type: 'disabled' } },
+    });
+
+    await svc.parseTransaction('Dollarcity $1.50');
+
+    expect(model.doGenerateCalls[0].providerOptions).toEqual({
+      deepseek: { thinking: { type: 'disabled' } },
+    });
+  });
+});

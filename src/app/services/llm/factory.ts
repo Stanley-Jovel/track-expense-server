@@ -8,7 +8,9 @@ import { FallbackLLMService, NamedLLMService } from './fallback-service';
 
 const DEFAULT_MODELS = {
   groq: 'openai/gpt-oss-20b',
-  deepseek: 'deepseek-chat',
+  // deepseek-chat was retired 2026-07-24. Flash is DeepSeek's cheapest model
+  // (V4 Pro costs about 4x more); its thinking mode is off below.
+  deepseek: 'deepseek-flash',
   mistral: 'open-mistral-nemo',
   openai: 'gpt-4o-mini',
 } as const;
@@ -28,7 +30,11 @@ function buildProductionService(): LLMApiService {
     const deepseek = createDeepSeek({ apiKey: process.env.DEEPSEEK_API_KEY });
     services.push({
       name: 'deepseek',
-      service: new VercelAIService(deepseek(DEFAULT_MODELS.deepseek), 'deepseek'),
+      // Thinking is on by default for V4 models. Parsing one purchase doesn't
+      // need it, and the reasoning tokens would be billed as output.
+      service: new VercelAIService(deepseek(DEFAULT_MODELS.deepseek), 'deepseek', {
+        deepseek: { thinking: { type: 'disabled' } },
+      }),
     });
   }
 

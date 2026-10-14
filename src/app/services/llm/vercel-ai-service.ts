@@ -7,10 +7,13 @@ import {
   SYSTEM_PROMPT,
 } from './types';
 
+type ProviderOptions = Parameters<typeof generateObject>[0]['providerOptions'];
+
 export class VercelAIService implements LLMApiService {
   constructor(
     private readonly model: LanguageModel,
-    public readonly providerName: string
+    public readonly providerName: string,
+    private readonly providerOptions?: ProviderOptions
   ) {}
 
   async parseTransaction(text: string): Promise<ParsedTransaction[]> {
@@ -20,6 +23,7 @@ export class VercelAIService implements LLMApiService {
       system: SYSTEM_PROMPT,
       prompt: text,
       temperature: 0.1,
+      providerOptions: this.providerOptions,
     });
 
     if (!object.parsed_transactions || object.parsed_transactions.length === 0) {
