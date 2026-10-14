@@ -30,7 +30,7 @@ import { merchantName } from "@/app/services/analytics/merchant";
 import { MonthlyTrendChart, PaceChart } from "./charts";
 import { EntryCategoryLine } from "./category-picker";
 import { EntryAmount } from "./amount-editor";
-import { EntryActions } from "./entry-actions";
+import { DeleteConfirm, SwipeRow } from "./entry-actions";
 import { formatDay, formatMonthLong, formatUsd } from "./format";
 
 export type SerializableTransaction = Omit<SheetTransaction, "date"> & {
@@ -81,8 +81,10 @@ export function DashboardClient({
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<SortOrder>("newest");
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
-  // The entry whose actions panel (delete) is open, by sheet row.
-  const [openRow, setOpenRow] = useState<number | null>(null);
+  // By sheet row: the entry swiped open to show its actions, and the entry
+  // whose Delete is waiting for confirmation.
+  const [swipedRow, setSwipedRow] = useState<number | null>(null);
+  const [confirmRow, setConfirmRow] = useState<number | null>(null);
 
   useEffect(() => {
     const params = new URLSearchParams();
@@ -490,46 +492,50 @@ export function DashboardClient({
             className="border-b last:border-0"
             style={{ borderColor: "var(--ledger-rule)" }}
           >
-            <div className="flex items-center justify-between gap-3 py-2.5">
-              <div className="min-w-0">
-                <button
-                  type="button"
-                  onClick={() => setOpenRow(openRow === t.row ? null : t.row)}
-                  aria-expanded={openRow === t.row}
-                  className="block max-w-full truncate text-left text-sm"
-                  title={t.motive}
-                >
-                  {t.merchant}
-                </button>
-                {t.type === "Expense" ? (
-                  <EntryCategoryLine
-                    merchant={t.merchant}
-                    category={t.category}
-                    dateLabel={formatDay(t.date)}
-                  />
-                ) : (
-                  // Overrides only recategorize Expenses, so Income has no picker.
-                  <p className="mt-0.5 text-xs" style={{ color: "var(--ledger-faint)" }}>
-                    {t.category} · {formatDay(t.date)}
+            <SwipeRow
+              open={swipedRow === t.row}
+              onOpenChange={(open) => setSwipedRow(open ? t.row : null)}
+              onDelete={() => {
+                setSwipedRow(null);
+                setConfirmRow(t.row);
+              }}
+              label={`${t.merchant}, ${formatUsd(t.amount)}`}
+            >
+              <div className="flex items-center justify-between gap-3 py-2.5">
+                <div className="min-w-0">
+                  <p className="truncate text-sm" title={t.motive}>
+                    {t.merchant}
                   </p>
-                )}
+                  {t.type === "Expense" ? (
+                    <EntryCategoryLine
+                      merchant={t.merchant}
+                      category={t.category}
+                      dateLabel={formatDay(t.date)}
+                    />
+                  ) : (
+                    // Overrides only recategorize Expenses, so Income has no picker.
+                    <p className="mt-0.5 text-xs" style={{ color: "var(--ledger-faint)" }}>
+                      {t.category} · {formatDay(t.date)}
+                    </p>
+                  )}
+                </div>
+                <EntryAmount
+                  row={t.row}
+                  motive={t.motive}
+                  amount={t.amount}
+                  type={t.type}
+                />
               </div>
-              <EntryAmount
-                row={t.row}
-                motive={t.motive}
-                amount={t.amount}
-                type={t.type}
-              />
-            </div>
-            {openRow === t.row && (
-              <EntryActions
+            </SwipeRow>
+            {confirmRow === t.row && (
+              <DeleteConfirm
                 row={t.row}
                 motive={t.motive}
                 merchant={t.merchant}
                 amount={t.amount}
                 type={t.type}
                 dateLabel={formatDay(t.date)}
-                onClose={() => setOpenRow(null)}
+                onClose={() => setConfirmRow(null)}
               />
             )}
           </div>
