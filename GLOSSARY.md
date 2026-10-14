@@ -18,11 +18,28 @@ One of the Categories on the Category list that a Transaction is classified into
 
 ## Category Suggestion
 
-The group of Expense rows whose Suggested Category normalizes to the same spelling. When nothing on the Category list is a clear fit for an Expense, the LLM still files it under the closest Category, and also suggests a short, general kind of expense (never a Merchant), which is written to the row's column F, "Suggested Category". Income never gets one, nor does an Expense whose Merchant has a Category Override. Normalizing lowercases, reads `&` as "and", drops punctuation and makes each word singular, so "Pet Supplies" and "pet supply" are one Category Suggestion, labelled by its first-seen spelling. A Category Suggestion waits for review on the dashboard; approving it adds it to the Category list (as Spending or Money Movement), moves its rows into it and clears their F. Merging it instead moves its rows into a Category already on the list ("No, it's X" when it looks like one, or "It's another category…" for any). A suggestion that is just a respelling of a Category is never a Category Suggestion: ingest files it under that Category, with F blank.
+The group of Expense rows whose Suggested Category has the same spelling key. When nothing on the Category list is a clear fit for an Expense, the LLM still files it under the closest Category, and also suggests a short, general kind of expense (never a Merchant), which is written to the row's column F, "Suggested Category". Income never gets one, nor does an Expense whose Merchant has a Category Override. The spelling key (`spellingKey` in code) lowercases, reads `&` as "and", drops punctuation and makes each word singular, so "Pet Supplies" and "pet supply" are one Category Suggestion, labelled by its first-seen spelling. A Category Suggestion waits for review on the dashboard; approving it adds it to the Category list (as Spending or Money Movement), moves its rows into it and clears their F. Merging it instead moves its rows into a Category already on the list ("No, it's X" when it has a Look-alike Hint to one, or "It's another category…" for any). It can also be Folded into another waiting Category Suggestion, or Dismissed. A suggestion that is just a respelling of a Category is never a Category Suggestion: ingest files it under that Category, with F blank.
 
 ## Category Spelling
 
-A normalized suggestion spelling the user has already answered, one row in the CategorySpellings sheet (Spelling, Outcome, Target, Updated-at). Approving or merging a Category Suggestion records its spelling as an `Alias` of the Category it went to, so a later Expense the LLM suggests the same thing for is filed under that Category at ingest, with F blank. Ingest checks a suggestion in order: a respelling of a Category, then a Category Spelling, otherwise it waits in F. If the sheet can't be read, ingest skips that check and still logs the Transaction. Deleting a row by hand undoes the answer.
+The spelling key of a suggestion the user has already answered, one row in the CategorySpellings sheet (Spelling, Outcome, Target, Updated-at). Its Outcome is one of:
+
+- `Alias`: its Target is where the suggestion goes. Approving or Merging a Category Suggestion records an Alias of the Category it went to; Folding records an Alias of the waiting Category Suggestion it joined (its label). An answer to a Category Suggestion re-records the spellings Folded into it with the same Outcome and Target, so no Alias is left pointing at a label that is no longer waiting.
+- `Dismissed`: no Target; the suggestion is dropped (see Dismiss).
+
+Ingest checks a suggestion in order, first match wins: a respelling of a Category files it under that Category; an Alias to a Category files it there; an Alias to a waiting Category Suggestion writes that Suggestion's label to F, so it joins it; a Dismissed spelling is dropped (F blank, the LLM's Category stays); otherwise the suggestion waits in F. If the sheet can't be read, ingest skips the Category Spelling checks and still logs the Transaction. Deleting a row by hand undoes the answer.
+
+## Look-alike Hint
+
+The answer "No, it's X" the review deck offers when a Category Suggestion looks like a Category or another waiting Category Suggestion: the one sharing the largest share of words with it, counted against the longer name's words after dropping "and", "the", "of" and "for" (words match on a shared start of 5+ letters, so Clothes matches Clothing), at 50% or more. A Category wins a tie. "Car Fuel" and "Gas & Fuel" share 1 of 2 words; so do "Pet Insurance" and Insurance. Only ever offered, never applied: on a Category it Merges, on a Category Suggestion it Folds.
+
+## Fold
+
+Answering a Category Suggestion with another waiting one ("No, it's X" on a Look-alike Hint to a Category Suggestion): its spelling is recorded as an Alias of the target's label and its rows' F is rewritten to that label, so they are listed and later decided with the target. Their Category stays as it is until the target is answered.
+
+## Dismiss
+
+Answering a Category Suggestion with "Not a category": its spelling is recorded as Dismissed and its rows' F is cleared, each keeping the Category the LLM gave it. Ingest then drops that suggestion silently from then on.
 
 ## Merchant
 
