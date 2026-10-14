@@ -185,10 +185,10 @@ function SuggestionCard({
   };
 
   // Runs one answer. On success the next Suggestion shows; on failure the
-  // error shows inline and this Suggestion stays. Either way the page
+  // server's error shows inline and this Suggestion stays. Either way the page
   // refreshes, so a half-done answer (an approval whose entries couldn't
   // move) shows its new Category in the picker.
-  const answerWith = (next: Choice, act: () => Promise<ReviewResult>, failure: string) => {
+  const answerWith = (next: Choice, act: () => Promise<ReviewResult>) => {
     if (pending) return;
     setError(null);
     setChoice(next);
@@ -199,7 +199,8 @@ function SuggestionCard({
         if (result.ok) onAnswered();
         else setError(result.error);
       } catch {
-        setError(failure);
+        // The action never answered (offline, or the server failed).
+        setError("Couldn't reach the server. Try again.");
       } finally {
         onPendingChange(false);
         router.refresh();
@@ -211,24 +212,21 @@ function SuggestionCard({
     if (trimmed === "") return;
     answerWith(
       countsAsSpending ? "spending" : "movement",
-      () => approveSuggestion({ ...listed, name: trimmed, countsAsSpending }),
-      `Couldn't add ${trimmed}. Try again.`
+      () => approveSuggestion({ ...listed, name: trimmed, countsAsSpending })
     );
   };
 
   const merge = (into: string, via: Choice) =>
     answerWith(
       via,
-      () => mergeSuggestion({ ...listed, into }),
-      `Couldn't move these into ${into}. Try again.`
+      () => mergeSuggestion({ ...listed, into })
     );
 
   // A Suggestion look-alike: its entries join that Suggestion, answered later.
   const fold = (into: string) =>
     answerWith(
       "hint",
-      () => foldSuggestion({ ...listed, into }),
-      `Couldn't fold these into ${into}. Try again.`
+      () => foldSuggestion({ ...listed, into })
     );
 
   const hint = suggestion.hint;
@@ -330,11 +328,7 @@ function SuggestionCard({
         </button>
         <button
           onClick={() =>
-            answerWith(
-              "dismiss",
-              () => dismissSuggestion(listed),
-              "Couldn't dismiss this suggestion. Try again."
-            )
+            answerWith("dismiss", () => dismissSuggestion(listed))
           }
           disabled={pending}
           className={answer}
