@@ -1,6 +1,6 @@
 # 0003: Pass the Category list in instead of importing it
 
-status: open
+status: closed (2026-10-14)
 assignee: —
 labels: wayfinder:task, ready-for-agent
 blocked-by: None (can start immediately)
@@ -21,9 +21,9 @@ The Category type becomes a string checked against the given list.
 
 ## Acceptance criteria
 
-- [ ] No module outside the built-in list's own definition reads that list directly. It is passed in from the edges (ingest, the dashboard page, server actions).
-- [ ] The hard-coded Money Movement set is gone. The aggregation functions take the non-Spending set as input and stay pure.
-- [ ] The schema's Category enum and the prompt's allowed list are built per call from the given list.
-- [ ] A Category outside the given list is still rejected everywhere it is rejected today.
-- [ ] Behavior is unchanged: the existing test suite passes without changing any expectations, and only call sites change.
-- [ ] Lint and type-check pass.
+- [x] No module outside the built-in list's own definition reads that list directly. It is passed in from the edges (ingest, the dashboard page, server actions).
+- [x] The hard-coded Money Movement set is gone. The aggregation functions take the non-Spending set as input and stay pure.
+- [x] The schema's Category enum and the prompt's allowed list are built per call from the given list.
+- [x] A Category outside the given list is still rejected everywhere it is rejected today.
+- [x] Behavior is unchanged: the existing test suite passes without changing any expectations, and only call sites change.
+- [x] Lint and type-check pass.
