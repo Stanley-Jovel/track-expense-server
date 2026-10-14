@@ -1,4 +1,4 @@
-import { ParsedTransaction, ExpenseType, ExpenseCategory } from '../llm/types';
+import { ParsedTransaction, ExpenseType, ExpenseCategory, CategoryEntry } from '../llm/types';
 
 // A transaction read back from the sheet. `category` is a plain string rather
 // than ExpenseCategory: the sheet is the source of truth and may hold values
@@ -49,6 +49,13 @@ export interface CategoryOverride {
 export interface SpreadsheetService {
   appendTransaction(data: ParsedTransaction[]): Promise<void>;
   readTransactions(): Promise<SheetTransaction[]>;
+  /**
+   * The Category list from the Categories sheet (Category, Counts as
+   * Spending, Added-at). A missing sheet is created and seeded with the
+   * built-in Categories. Throws SpreadsheetReadError when the list can't be
+   * read or holds no Category, so callers fall back to the built-in list.
+   */
+  readCategories(): Promise<CategoryEntry[]>;
   /**
    * Rewrite the Category column of the given rows, in one batch.
    */

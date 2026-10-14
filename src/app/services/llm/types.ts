@@ -40,13 +40,44 @@ export const EXPENSE_CATEGORIES = [
   'Income',
 ] as const;
 
-// The built-in Categories that don't count as Spending (Money Movement — see
-// GLOSSARY.md). Income is excluded from Spending by its type, not by this set.
-export const BUILT_IN_NOT_SPENDING: readonly string[] = ['Transfers', 'Investments & Savings'];
+/**
+ * One row of the Category list (see GLOSSARY.md: Category): its name and
+ * whether its Expenses count as Spending. A Category that doesn't is Money
+ * Movement.
+ */
+export interface CategoryEntry {
+  name: string;
+  countsAsSpending: boolean;
+}
 
-// A Category is any name on the Category list the caller passes in. The
-// built-in list above is only a default the edges (ingest, the dashboard
-// page, server actions) hand down; nothing else reads it directly.
+// Income never counts as Spending (it isn't an Expense); the flag only keeps
+// the list honest when read by hand in the Categories sheet.
+const BUILT_IN_NOT_SPENDING_NAMES: readonly string[] = ['Transfers', 'Investments & Savings', 'Income'];
+
+/**
+ * The built-in list with its Spending flags. It seeds the Categories sheet on
+ * first read and is the fallback whenever that sheet can't be read.
+ */
+export const BUILT_IN_CATEGORIES: readonly CategoryEntry[] = EXPENSE_CATEGORIES.map((name) => ({
+  name,
+  countsAsSpending: !BUILT_IN_NOT_SPENDING_NAMES.includes(name),
+}));
+
+/** The names on a Category list, in order. */
+export function categoryNames(categories: readonly CategoryEntry[]): string[] {
+  return categories.map((c) => c.name);
+}
+
+/** The Categories on a list that don't count as Spending. */
+export function notSpendingOf(categories: readonly CategoryEntry[]): string[] {
+  return categories.filter((c) => !c.countsAsSpending).map((c) => c.name);
+}
+
+export const BUILT_IN_NOT_SPENDING: readonly string[] = notSpendingOf(BUILT_IN_CATEGORIES);
+
+// A Category is any name on the Category list the caller passes in. The list
+// lives in the Categories sheet; the edges (ingest, the dashboard page, server
+// actions) read it and hand it down, falling back to the built-in list.
 export type ExpenseCategory = string;
 
 /** Whether `category` is one of the given `categories`. */

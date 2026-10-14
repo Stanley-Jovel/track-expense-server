@@ -1,7 +1,7 @@
 import { Metadata } from "next";
 import { Suspense } from "react";
-import { getTransactions } from "@/app/services/spreadsheet/cached-transactions";
-import { BUILT_IN_NOT_SPENDING, EXPENSE_CATEGORIES } from "@/app/services/llm/types";
+import { getCategories, getTransactions } from "@/app/services/spreadsheet/cached-transactions";
+import { categoryNames, notSpendingOf } from "@/app/services/llm/types";
 import { DashboardClient, SerializableTransaction } from "./dashboard-client";
 import { RefreshBar } from "./refresh-bar";
 
@@ -15,7 +15,7 @@ export const metadata: Metadata = {
 };
 
 export default async function DashboardPage() {
-  const transactions = await getTransactions();
+  const [transactions, categories] = await Promise.all([getTransactions(), getCategories()]);
   const serializable: SerializableTransaction[] = transactions.map((t) => ({
     ...t,
     date: t.date.toISOString(),
@@ -36,13 +36,13 @@ export default async function DashboardPage() {
       <RefreshBar fetchedAt={fetchedAt} />
       {/* useSearchParams in the client component needs a Suspense boundary. */}
       <Suspense>
-        {/* The page is an edge: it decides the Category list and which
-            Categories don't count as Spending. For now, the built-in ones. */}
+        {/* The page is an edge: the Categories sheet decides the Category
+            list and which Categories don't count as Spending. */}
         <DashboardClient
           transactions={serializable}
           fetchedAt={fetchedAt}
-          categoryList={EXPENSE_CATEGORIES}
-          notSpending={BUILT_IN_NOT_SPENDING}
+          categoryList={categoryNames(categories)}
+          notSpending={notSpendingOf(categories)}
         />
       </Suspense>
     </div>

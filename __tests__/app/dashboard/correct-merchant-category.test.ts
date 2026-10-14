@@ -163,4 +163,15 @@ describe('correctMerchantCategory', () => {
     expect(await sheet.readTransactions()).toEqual(before);
     expect(await sheet.readCategoryOverrides(EXPENSE_CATEGORIES)).toEqual([]);
   });
+
+  it('accepts a Category added to the Categories sheet by hand', async () => {
+    await sheet.addCategoryByHand({ name: 'Brunch', countsAsSpending: true });
+
+    const result = await correctMerchantCategory('Las Brumas', 'Brunch');
+
+    expect(result).toEqual({ ok: true, repaired: 3 });
+    expect(await sheet.readCategoryOverrides(['Brunch'])).toEqual([
+      { merchant: 'Las Brumas', category: 'Brunch', updatedAt: expect.any(String) },
+    ]);
+  });
 });

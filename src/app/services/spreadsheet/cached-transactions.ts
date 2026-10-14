@@ -1,6 +1,8 @@
 import { unstable_cache } from 'next/cache';
 import { SpreadsheetServiceFactory } from './factory';
 import { SheetTransaction } from './types';
+import { readCategoriesOrBuiltIn } from './categories';
+import { CategoryEntry } from '../llm/types';
 
 // unstable_cache JSON-serializes its result, so Dates are cached as ISO
 // strings and revived on the way out.
@@ -22,4 +24,21 @@ const readSerialized = unstable_cache(
 export async function getTransactions(): Promise<SheetTransaction[]> {
   const serialized = await readSerialized();
   return serialized.map((t) => ({ ...t, date: new Date(t.date) }));
+}
+
+const readCategoryList = unstable_cache(
+  async (): Promise<CategoryEntry[]> =>
+    readCategoriesOrBuiltIn(SpreadsheetServiceFactory.create()),
+  ['sheet-categories'],
+  // Same tag as the rows, so every existing cache bust (ingest, the server
+  // actions, the refresh button) also picks up hand edits to the list.
+  { revalidate: 60, tags: ['sheet-transactions'] }
+);
+
+/**
+ * The Category list from the Categories sheet (the built-in list if it can't
+ * be read), cached for 60 seconds across requests.
+ */
+export async function getCategories(): Promise<CategoryEntry[]> {
+  return readCategoryList();
 }

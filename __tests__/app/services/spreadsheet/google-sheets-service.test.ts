@@ -217,3 +217,66 @@ describe('readCategoryOverrides', () => {
     ]);
   });
 });
+
+describe('readCategories', () => {
+  it('creates and seeds the Categories sheet with the built-in list when it is missing', async () => {
+    sheetTitles(TX);
+
+    const categories = await service.readCategories();
+
+    expect(api.batchUpdate.mock.calls[0][0].requestBody.requests).toEqual([
+      { addSheet: { properties: { title: 'Categories' } } },
+    ]);
+    expect(ranges(api.values.update)).toEqual(['Categories!A1:C26']);
+    const [header, ...seed] = api.values.update.mock.calls[0][0].requestBody.values;
+    expect(header).toEqual(['Category', 'Counts as Spending', 'Added-at']);
+    expect(seed).toHaveLength(25);
+    expect(
+      seed.filter(([, spending]: unknown[]) => spending === false).map(([name]: unknown[]) => name)
+    ).toEqual(['Investments & Savings', 'Transfers', 'Income']);
+    expect(categories).toHaveLength(25);
+    expect(categories).toContainEqual({ name: 'Transfers', countsAsSpending: false });
+    expect(categories).toContainEqual({ name: 'Groceries', countsAsSpending: true });
+  });
+
+  it('reads the Category list, with hand-added rows and their Spending flag', async () => {
+    sheetTitles(TX, 'Categories');
+    overrideRows('Categories!A2:C5', [
+      ['Groceries', true, '2026-10-14'],
+      ['Transfers', false, '2026-10-14'],
+      ['Pet Supplies', 'TRUE', ''],
+      ['Car Loan', 'FALSE'],
+    ]);
+
+    expect(await service.readCategories()).toEqual([
+      { name: 'Groceries', countsAsSpending: true },
+      { name: 'Transfers', countsAsSpending: false },
+      { name: 'Pet Supplies', countsAsSpending: true },
+      { name: 'Car Loan', countsAsSpending: false },
+    ]);
+    expect(ranges(api.values.get)).toEqual(['Categories!A2:C']);
+    expect(api.batchUpdate).not.toHaveBeenCalled();
+  });
+
+  it('skips blank and repeated names, trimming hand-typed ones', async () => {
+    sheetTitles(TX, 'Categories');
+    overrideRows('Categories!A2:C5', [
+      ['  Groceries ', true],
+      ['', false],
+      ['Groceries', false],
+      ['Income', false],
+    ]);
+
+    expect(await service.readCategories()).toEqual([
+      { name: 'Groceries', countsAsSpending: true },
+      { name: 'Income', countsAsSpending: false },
+    ]);
+  });
+
+  it('fails the read when the sheet holds no Category, so callers fall back', async () => {
+    sheetTitles(TX, 'Categories');
+    overrideRows('Categories!A2:C', []);
+
+    await expect(service.readCategories()).rejects.toThrow('no Categories');
+  });
+});

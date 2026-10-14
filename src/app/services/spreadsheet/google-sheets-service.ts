@@ -10,11 +10,19 @@ import {
   CategoryRewrite,
   TransactionRewrite,
 } from './types';
-import { ParsedTransaction, isExpenseCategory } from '../llm/types';
+import { BUILT_IN_CATEGORIES, CategoryEntry, ParsedTransaction, isExpenseCategory } from '../llm/types';
 import { dateToSerial, parseTransactionRows } from './parse-row';
 import { sameMerchant } from '../analytics/merchant';
 
 const OVERRIDES_HEADER = ['Merchant', 'Category', 'Updated-at'];
+const CATEGORIES_HEADER = ['Category', 'Counts as Spending', 'Added-at'];
+
+// A hand-edited Spending flag: an unticked checkbox reads as false, a typed
+// FALSE as the string. Anything else (including blank) counts as Spending.
+function countsAsSpending(flag: unknown): boolean {
+  if (flag === false) return false;
+  return !(typeof flag === 'string' && flag.trim().toUpperCase() === 'FALSE');
+}
 
 /**
  * The sheet row number of the first row in a values.get response, read from
@@ -122,6 +130,37 @@ export class GoogleSheetsService implements SpreadsheetService {
       }
 
       return transactions;
+    } catch (error: unknown) {
+      throw new SpreadsheetReadError(
+        error instanceof Error ? error.message : 'Unknown error'
+      );
+    }
+  }
+
+  async readCategories(): Promise<CategoryEntry[]> {
+    try {
+      if (!(await this.hasSheet(this.sheetNames.categories))) {
+        return await this.createCategoriesSheet();
+      }
+      const res = await this.sheets.spreadsheets.values.get({
+        auth: this.auth,
+        spreadsheetId: this.spreadsheetId,
+        range: `${this.sheetNames.categories}!A2:C`,
+        valueRenderOption: 'UNFORMATTED_VALUE',
+      });
+      // The sheet is hand-editable: skip blank names and keep the first row
+      // of a repeated one.
+      const categories: CategoryEntry[] = [];
+      for (const [name, flag] of res.data.values ?? []) {
+        const trimmed = typeof name === 'string' ? name.trim() : '';
+        if (trimmed && !categories.some((c) => c.name === trimmed)) {
+          categories.push({ name: trimmed, countsAsSpending: countsAsSpending(flag) });
+        }
+      }
+      if (categories.length === 0) {
+        throw new Error('The Categories sheet holds no Categories');
+      }
+      return categories;
     } catch (error: unknown) {
       throw new SpreadsheetReadError(
         error instanceof Error ? error.message : 'Unknown error'
@@ -304,6 +343,28 @@ export class GoogleSheetsService implements SpreadsheetService {
       valueInputOption: 'RAW',
       requestBody: { values: [OVERRIDES_HEADER] },
     });
+  }
+
+  // Creates the Categories sheet and seeds it with the built-in list, so the
+  // dashboard's Spending is unchanged on the day it appears.
+  private async createCategoriesSheet(): Promise<CategoryEntry[]> {
+    await this.sheets.spreadsheets.batchUpdate({
+      auth: this.auth,
+      spreadsheetId: this.spreadsheetId,
+      requestBody: {
+        requests: [{ addSheet: { properties: { title: this.sheetNames.categories } } }],
+      },
+    });
+    const addedAt = new Date().toISOString();
+    const seed = BUILT_IN_CATEGORIES.map((c) => [c.name, c.countsAsSpending, addedAt]);
+    await this.sheets.spreadsheets.values.update({
+      auth: this.auth,
+      spreadsheetId: this.spreadsheetId,
+      range: `${this.sheetNames.categories}!A1:C${seed.length + 1}`,
+      valueInputOption: 'RAW',
+      requestBody: { values: [CATEGORIES_HEADER, ...seed] },
+    });
+    return BUILT_IN_CATEGORIES.map((c) => ({ ...c }));
   }
 
   private toWriteError(error: unknown): SpreadsheetWriteError {

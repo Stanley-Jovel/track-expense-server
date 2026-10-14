@@ -6,7 +6,7 @@ import {
   SpreadsheetPermissionError,
   TransactionRewrite,
 } from './types';
-import { ParsedTransaction, isExpenseCategory } from '../llm/types';
+import { BUILT_IN_CATEGORIES, CategoryEntry, ParsedTransaction, isExpenseCategory } from '../llm/types';
 import { sameMerchant } from '../analytics/merchant';
 
 // In-memory sheet. Rows are stored as the sheet would hold them: a fixed
@@ -14,6 +14,8 @@ import { sameMerchant } from '../analytics/merchant';
 export class MockSpreadsheetService implements SpreadsheetService {
   private rows: SheetTransaction[] = [];
   private overrides: CategoryOverride[] = [];
+  // null until the first read creates and seeds the Categories sheet.
+  private categories: CategoryEntry[] | null = null;
   private shouldFail = false;
 
   async appendTransaction(data: ParsedTransaction[]): Promise<void> {
@@ -27,6 +29,12 @@ export class MockSpreadsheetService implements SpreadsheetService {
   async readTransactions(): Promise<SheetTransaction[]> {
     this.failIfAsked();
     return this.rows.map((row) => ({ ...row, date: new Date(row.date) }));
+  }
+
+  async readCategories(): Promise<CategoryEntry[]> {
+    this.failIfAsked();
+    this.categories ??= BUILT_IN_CATEGORIES.map((c) => ({ ...c }));
+    return this.categories.map((c) => ({ ...c }));
   }
 
   async rewriteCategories(rewrites: CategoryRewrite[]): Promise<void> {
@@ -77,6 +85,12 @@ export class MockSpreadsheetService implements SpreadsheetService {
     this.shouldFail = fail;
   }
 
+  /** A Category added by hand in the sheet (seeding it first if missing). */
+  async addCategoryByHand(entry: CategoryEntry): Promise<void> {
+    await this.readCategories();
+    this.categories!.push({ ...entry });
+  }
+
   getRows(): SheetTransaction[] {
     return this.rows.map((row) => ({ ...row }));
   }
@@ -84,5 +98,6 @@ export class MockSpreadsheetService implements SpreadsheetService {
   clear(): void {
     this.rows = [];
     this.overrides = [];
+    this.categories = null;
   }
 }

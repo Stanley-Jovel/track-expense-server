@@ -1,11 +1,11 @@
 'use server';
 
 import { revalidatePath, revalidateTag } from 'next/cache';
-import { SpreadsheetServiceFactory } from '@/app/services/spreadsheet';
+import { SpreadsheetServiceFactory, readCategoriesOrBuiltIn } from '@/app/services/spreadsheet';
 import { merchantName, sameMerchant } from '@/app/services/analytics/merchant';
 import {
-  EXPENSE_CATEGORIES,
   ExpenseCategory,
+  categoryNames,
   isExpenseCategory,
 } from '@/app/services/llm/types';
 
@@ -17,6 +17,12 @@ import {
 export async function refreshDashboard(): Promise<void> {
   revalidateTag('sheet-transactions');
   revalidatePath('/dashboard');
+}
+
+// Server actions are an edge: they validate against the Categories sheet's
+// list, or the built-in list if that sheet can't be read.
+async function loadCategoryNames(): Promise<string[]> {
+  return categoryNames(await readCategoriesOrBuiltIn(SpreadsheetServiceFactory.create()));
 }
 
 export type CorrectionResult =
@@ -36,7 +42,7 @@ export async function correctMerchantCategory(
   category: ExpenseCategory
 ): Promise<CorrectionResult> {
   // A server action is a public endpoint: re-check the closed list at runtime.
-  if (!isExpenseCategory(category, EXPENSE_CATEGORIES)) {
+  if (!isExpenseCategory(category, await loadCategoryNames())) {
     return { ok: false, error: `"${category}" is not a known Category` };
   }
 
@@ -133,7 +139,8 @@ export async function modifyTransaction(
     }
     // A Category outside the closed list is only allowed if it's the one the
     // row already holds (rows written before the current list existed).
-    if (!isExpenseCategory(edit.category, EXPENSE_CATEGORIES) && edit.category !== current.category) {
+    const categories = await loadCategoryNames();
+    if (!isExpenseCategory(edit.category, categories) && edit.category !== current.category) {
       return { ok: false, error: `"${edit.category}" is not a known Category` };
     }
     const date = new Date(`${edit.day}${current.date.toISOString().slice(10)}`);
@@ -149,7 +156,7 @@ export async function modifyTransaction(
     });
     written = true;
 
-    if (edit.allFromMerchant === true && current.type === 'Expense' && isExpenseCategory(edit.category, EXPENSE_CATEGORIES)) {
+    if (edit.allFromMerchant === true && current.type === 'Expense' && isExpenseCategory(edit.category, categories)) {
       const merchant = merchantName(nextMotive);
       const result = await correctMerchantCategory(merchant, edit.category);
       if (!result.ok) {

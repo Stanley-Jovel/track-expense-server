@@ -14,7 +14,7 @@ Whether a Transaction is `Income` or `Expense`. Exactly these two values.
 
 ## Category
 
-One of the 26 fixed categories a Transaction is classified into. The set is closed; the LLM must pick from it and never invents new ones.
+One of the Categories on the Category list that a Transaction is classified into. The list is closed at parse time: the LLM must pick from it and never invents new ones. It lives in the `Categories` sheet (Category, Counts as Spending, Added-at), which is created and seeded with the 25 built-in Categories on first read, and it grows only by approval (or by a hand edit to that sheet). Each Category says whether it counts as Spending. If the sheet can't be read, the built-in list is used.
 
 ## Merchant
 
@@ -34,8 +34,8 @@ The Daily Average extrapolated across the full current period: what the period's
 
 ## Spending
 
-The subset of Expense transactions that represent real consumption: all Expenses **excluding** the `Transfers` and `Investments & Savings` categories. `Bank & FX Fees` counts as Spending. Dashboard totals, trends, and category breakdowns use Spending, not raw Expense, so moving money to savings never inflates them.
+The subset of Expense transactions that represent real consumption: all Expenses **excluding** those in a Category whose Counts as Spending flag is off in the `Categories` sheet (seeded off for `Transfers`, `Investments & Savings` and `Income`). `Bank & FX Fees` counts as Spending. Dashboard totals, trends, and category breakdowns use Spending, not raw Expense, so moving money to savings never inflates them.
 
 ## Money Movement
 
-Transactions in `Transfers` or `Investments & Savings`: money changing location, not being consumed. Shown separately on the dashboard, excluded from Spending.
+Expenses in a Category that doesn't count as Spending (seeded as `Transfers` and `Investments & Savings`): money changing location, not being consumed. Shown separately on the dashboard, excluded from Spending.
