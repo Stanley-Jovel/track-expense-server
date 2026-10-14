@@ -125,3 +125,45 @@ export async function correctTransactionAmount(
     }
   }
 }
+
+export type DeletionResult = { ok: true } | { ok: false; error: string };
+
+/**
+ * Delete one logged Transaction: its whole sheet row is removed. `motive`
+ * and `amount` are what the dashboard showed for the row; deleting shifts
+ * later rows up, so if the sheet no longer matches them (the page is stale)
+ * nothing is deleted.
+ */
+export async function deleteTransaction(
+  row: number,
+  motive: string,
+  amount: number
+): Promise<DeletionResult> {
+  // A server action is a public endpoint: validate everything at runtime.
+  if (!Number.isInteger(row) || row < 2) {
+    return { ok: false, error: 'Unknown entry.' };
+  }
+
+  let deleted = false;
+  try {
+    const sheet = SpreadsheetServiceFactory.create();
+    const current = (await sheet.readTransactions()).find((t) => t.row === row);
+    if (!current || current.motive !== motive || current.amount !== amount) {
+      return { ok: false, error: 'This entry changed since the page loaded. Refresh and try again.' };
+    }
+    await sheet.deleteTransactionRow(row);
+    deleted = true;
+    return { ok: true };
+  } catch (error) {
+    console.error('deleteTransaction failed:', error);
+    return { ok: false, error: "Couldn't delete the entry. Try again." };
+  } finally {
+    if (deleted) {
+      try {
+        await refreshDashboard();
+      } catch (error) {
+        console.error('deleteTransaction: dashboard revalidation failed:', error);
+      }
+    }
+  }
+}

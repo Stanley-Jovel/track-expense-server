@@ -165,6 +165,39 @@ export class GoogleSheetsService implements SpreadsheetService {
     }
   }
 
+  async deleteTransactionRow(row: number): Promise<void> {
+    try {
+      // deleteDimension addresses the sheet by its numeric id, not its title.
+      const res = await this.sheets.spreadsheets.get({
+        auth: this.auth,
+        spreadsheetId: this.spreadsheetId,
+        fields: 'sheets.properties(sheetId,title)',
+      });
+      const sheetId = res.data.sheets?.find(
+        (sheet) => sheet.properties?.title === this.sheetNames.transactions
+      )?.properties?.sheetId;
+      if (sheetId == null) {
+        throw new Error(`No sheet named ${this.sheetNames.transactions}`);
+      }
+      // 0-based and end-exclusive: sheet row N is index N-1.
+      await this.sheets.spreadsheets.batchUpdate({
+        auth: this.auth,
+        spreadsheetId: this.spreadsheetId,
+        requestBody: {
+          requests: [
+            {
+              deleteDimension: {
+                range: { sheetId, dimension: 'ROWS', startIndex: row - 1, endIndex: row },
+              },
+            },
+          ],
+        },
+      });
+    } catch (error: unknown) {
+      throw this.toWriteError(error);
+    }
+  }
+
   async readCategoryOverrides(): Promise<CategoryOverride[]> {
     try {
       const { rows } = await this.readOverrideRows({ createIfMissing: false });

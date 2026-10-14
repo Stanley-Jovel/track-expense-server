@@ -44,6 +44,13 @@ export class MockSpreadsheetService implements SpreadsheetService {
     this.rows[row - 2] = { ...target, amount };
   }
 
+  async deleteTransactionRow(row: number): Promise<void> {
+    this.failIfAsked();
+    if (!this.rows[row - 2]) throw new Error(`No sheet row ${row}`);
+    this.rows.splice(row - 2, 1);
+    this.rows = this.rows.map((t, i) => ({ ...t, row: i + 2 }));
+  }
+
   async readCategoryOverrides(): Promise<CategoryOverride[]> {
     this.failIfAsked();
     return this.overrides.map((o) => ({ ...o }));

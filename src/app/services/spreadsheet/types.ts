@@ -12,8 +12,8 @@ export interface Transaction {
 }
 
 // A Transaction as read from the sheet, carrying its 1-based sheet row number
-// (the header is row 1). Rows are only ever appended, never deleted or
-// reordered, so the number is a stable identity for rewriting that row.
+// (the header is row 1). Deleting a row shifts every later row up by one, so
+// every write that targets a row number re-checks that row's contents first.
 export interface SheetTransaction extends Transaction {
   row: number;
 }
@@ -46,6 +46,8 @@ export interface SpreadsheetService {
   rewriteCategories(rewrites: CategoryRewrite[]): Promise<void>;
   /** Replace the amount cell of one existing sheet row. */
   rewriteAmount(row: number, amount: number): Promise<void>;
+  /** Remove one sheet row entirely; later rows shift up by one. */
+  deleteTransactionRow(row: number): Promise<void>;
   readCategoryOverrides(): Promise<CategoryOverride[]>;
   /**
    * Save an override, replacing any existing one for the same Merchant

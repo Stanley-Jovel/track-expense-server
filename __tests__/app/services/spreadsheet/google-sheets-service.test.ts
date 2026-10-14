@@ -76,6 +76,38 @@ describe('rewriteAmount', () => {
   });
 });
 
+describe('deleteTransactionRow', () => {
+  it('deletes exactly that sheet row of the Transactions sheet, by its numeric id', async () => {
+    api.get.mockResolvedValue({
+      data: {
+        sheets: [
+          { properties: { title: 'Analysis', sheetId: 11 } },
+          { properties: { title: TX, sheetId: 42 } },
+        ],
+      },
+    });
+
+    await service.deleteTransactionRow(7);
+
+    expect(api.batchUpdate).toHaveBeenCalledTimes(1);
+    const [{ requestBody }] = api.batchUpdate.mock.calls[0];
+    expect(requestBody.requests).toEqual([
+      {
+        deleteDimension: {
+          range: { sheetId: 42, dimension: 'ROWS', startIndex: 6, endIndex: 7 },
+        },
+      },
+    ]);
+  });
+
+  it('deletes nothing when the Transactions sheet is missing', async () => {
+    sheetTitles('Analysis');
+
+    await expect(service.deleteTransactionRow(7)).rejects.toThrow();
+    expect(api.batchUpdate).not.toHaveBeenCalled();
+  });
+});
+
 describe('readTransactions', () => {
   it('numbers rows from the range the API reports, not an assumed A2', async () => {
     api.values.get.mockResolvedValue({
