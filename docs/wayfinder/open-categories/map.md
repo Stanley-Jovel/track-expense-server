@@ -2,7 +2,7 @@
 
 labels: `wayfinder:map`, `ready-for-agent`
 tickets: [tickets/](tickets/)
-status: open
+status: closed
 
 ## Problem Statement
 
@@ -189,6 +189,10 @@ Every answer teaches the app that spelling, so I never review the same variant t
 <!-- one line per closed ticket -->
 - 0001 (2026-10-14): The logic prototype validated #2 + #3. Normalization is the only automatic merge, look-alike scores are only hints, and approval forces the Spending decision.
 - 0002 (2026-10-14): The review deck (variant C) won over a dashboard section (A) and chips on the entries (B).
+- 0003 (2026-10-14): The Category list and the not-Spending set are passed in from the edges (ingest, the dashboard page, server actions). The hard-coded Money Movement set is gone.
+- 0004 (2026-10-14): The Categories sheet is created and seeded on first read; a failed read logs and falls back to the built-in list. Income is seeded as not Spending, as the map says.
+- 0005 (2026-10-14): `suggested_category` is nullable, not optional, because Groq's strict structured output requires every field. Approve adds the Category before moving rows; if the move fails, Merge finishes the job.
 - 0006 (2026-10-14): Category Spellings live in a CategorySpellings sheet (upsert by normalized spelling). Merge and Approve record the Suggestion's key as an Alias. The look-alike hint matches word stems (5+ shared letters) so Clothes hints Clothing.
 - 0007 (2026-10-14): Dismiss records the Suggestion's key as Dismissed and clears F only (Category untouched). "Not a category" sits after the two approve buttons, before "It's another category…". The ingest check order was already in place from 0006.
 - 0008 (2026-10-14): Any answer to a Suggestion (not just Approve) re-records the spellings folded into it with the same outcome and target, so Merge, Dismiss and a second fold never leave an Alias pointing at a label no longer waiting. The look-alike share is shared words over the longer name's word count (after dropping and/the/of/for), so the demo pair "Car Fuel"/"Gas & Fuel" shares 1 of 2 words (50%) and gets the hint; "Pet Insurance"/"Insurance" is also 50%, still only a hint.
+- 0009 (2026-10-14): Shipped to main and verified on the iPhone with a PetSmart test purchase: one approved Pet Supplies Category, and the next PetSmart purchase was filed there directly.
