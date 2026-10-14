@@ -8,6 +8,7 @@ import {
   SheetTransaction,
   CategoryOverride,
   CategoryRewrite,
+  SuggestionRewrite,
   TransactionRewrite,
 } from './types';
 import { BUILT_IN_CATEGORIES, CategoryEntry, ParsedTransaction, isExpenseCategory } from '../llm/types';
@@ -88,12 +89,14 @@ export class GoogleSheetsService implements SpreadsheetService {
         transaction.amount.toString(),
         transaction.type,
         transaction.category,
+        // F: Suggested Category, waiting for review (see GLOSSARY.md).
+        transaction.suggestedCategory ?? '',
       ]);
 
       await this.sheets.spreadsheets.values.append({
         auth: this.auth,
         spreadsheetId: this.spreadsheetId,
-        range: `${this.sheetNames.transactions}!A:E`,
+        range: `${this.sheetNames.transactions}!A:F`,
         valueInputOption: 'USER_ENTERED',
         requestBody: {
           values: rows,
@@ -112,7 +115,7 @@ export class GoogleSheetsService implements SpreadsheetService {
       const res = await this.sheets.spreadsheets.values.get({
         auth: this.auth,
         spreadsheetId: this.spreadsheetId,
-        range: `${this.sheetNames.transactions}!A2:E`,
+        range: `${this.sheetNames.transactions}!A2:F`,
         valueRenderOption: 'UNFORMATTED_VALUE',
         dateTimeRenderOption: 'SERIAL_NUMBER',
       });
@@ -182,6 +185,47 @@ export class GoogleSheetsService implements SpreadsheetService {
             range: `${this.sheetNames.transactions}!E${row}`,
             values: [[category]],
           })),
+        },
+      });
+    } catch (error: unknown) {
+      throw this.toWriteError(error);
+    }
+  }
+
+  async addCategory(entry: CategoryEntry): Promise<void> {
+    try {
+      // Reading first creates and seeds the sheet if it's missing.
+      await this.readCategories();
+      await this.sheets.spreadsheets.values.append({
+        auth: this.auth,
+        spreadsheetId: this.spreadsheetId,
+        range: `${this.sheetNames.categories}!A:C`,
+        valueInputOption: 'RAW',
+        requestBody: {
+          values: [[entry.name, entry.countsAsSpending, new Date().toISOString()]],
+        },
+      });
+    } catch (error: unknown) {
+      throw this.toWriteError(error);
+    }
+  }
+
+  async rewriteSuggestions(rewrites: SuggestionRewrite[]): Promise<void> {
+    if (rewrites.length === 0) return;
+    try {
+      // E is Category, F is Suggested Category; each range covers only the
+      // cells being rewritten, so no other column of the row is touched.
+      const tx = this.sheetNames.transactions;
+      await this.sheets.spreadsheets.values.batchUpdate({
+        auth: this.auth,
+        spreadsheetId: this.spreadsheetId,
+        requestBody: {
+          valueInputOption: 'RAW',
+          data: rewrites.map(({ row, category, suggestedCategory }) =>
+            category === undefined
+              ? { range: `${tx}!F${row}`, values: [[suggestedCategory]] }
+              : { range: `${tx}!E${row}:F${row}`, values: [[category, suggestedCategory]] }
+          ),
         },
       });
     } catch (error: unknown) {

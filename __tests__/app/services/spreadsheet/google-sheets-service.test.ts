@@ -65,6 +65,57 @@ describe('rewriteCategories', () => {
   });
 });
 
+describe('appendTransaction', () => {
+  it('writes the Suggested Category to column F, blank when there is none', async () => {
+    await service.appendTransaction([
+      { motive: 'PETSMART', amount: 38.5, type: 'Expense', category: 'Shopping — General', suggestedCategory: 'Pet Supplies' },
+      { motive: 'Starbucks', amount: 7, type: 'Expense', category: 'Coffee & Quick Bites' },
+    ]);
+
+    const [{ range, requestBody }] = api.values.append.mock.calls[0];
+    expect(range).toBe(`${TX}!A:F`);
+    expect(requestBody.values.map((r: unknown[]) => r.slice(1))).toEqual([
+      ['PETSMART', '38.5', 'Expense', 'Shopping — General', 'Pet Supplies'],
+      ['Starbucks', '7', 'Expense', 'Coffee & Quick Bites', ''],
+    ]);
+  });
+});
+
+describe('rewriteSuggestions', () => {
+  it('writes F of each row, and E only where a Category is given', async () => {
+    await service.rewriteSuggestions([
+      { row: 4, category: 'Pet Supplies', suggestedCategory: '' },
+      { row: 9, suggestedCategory: 'Gas & Fuel' },
+    ]);
+
+    expect(api.values.batchUpdate).toHaveBeenCalledTimes(1);
+    const [{ requestBody }] = api.values.batchUpdate.mock.calls[0];
+    expect(requestBody.data).toEqual([
+      { range: `${TX}!E4:F4`, values: [['Pet Supplies', '']] },
+      { range: `${TX}!F9`, values: [['Gas & Fuel']] },
+    ]);
+  });
+
+  it('makes no call when there is nothing to rewrite', async () => {
+    await service.rewriteSuggestions([]);
+
+    expect(api.values.batchUpdate).not.toHaveBeenCalled();
+  });
+});
+
+describe('addCategory', () => {
+  it('appends the Category with its Spending flag to the Categories sheet', async () => {
+    sheetTitles(TX, 'Categories');
+    overrideRows('Categories!A2:C3', [['Groceries', true, ''], ['Transfers', false, '']]);
+
+    await service.addCategory({ name: 'Car Payment', countsAsSpending: false });
+
+    const [{ range, requestBody }] = api.values.append.mock.calls[0];
+    expect(range).toBe('Categories!A:C');
+    expect(requestBody.values).toEqual([['Car Payment', false, expect.any(String)]]);
+  });
+});
+
 describe('rewriteTransaction', () => {
   it('writes date, Motive, amount and Category of the row, never its Type', async () => {
     await service.rewriteTransaction(42, {
@@ -135,6 +186,23 @@ describe('readTransactions', () => {
       ['Uber trip', 5],
       ['Starbucks', 6],
     ]);
+  });
+
+  it('reads the Suggested Category from column F, a blank F as none', async () => {
+    api.values.get.mockResolvedValue({
+      data: {
+        range: `${TX}!A2:F3`,
+        values: [
+          [46000, 'PETSMART #0412', 38.5, 'Expense', 'Shopping — General', 'Pet Supplies'],
+          [46001, 'Starbucks', 7, 'Expense', 'Coffee & Quick Bites', ''],
+        ],
+      },
+    });
+
+    const rows = await service.readTransactions();
+
+    expect(ranges(api.values.get)).toEqual([`${TX}!A2:F`]);
+    expect(rows.map((t) => t.suggestedCategory)).toEqual(['Pet Supplies', undefined]);
   });
 
   it('falls back to A2 when the response carries no range', async () => {

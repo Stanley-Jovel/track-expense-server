@@ -2,7 +2,7 @@
 
 ## Transaction
 
-A single money event logged to the Transactions sheet: a timestamp, a Motive, an amount, a Type, and a Category. Most transactions arrive automatically via Apple Pay automations; Income transactions are entered manually.
+A single money event logged to the Transactions sheet: a timestamp, a Motive, an amount, a Type, a Category and, for an Expense that fits no Category well, a Suggested Category (column F; see Category Suggestion). Most transactions arrive automatically via Apple Pay automations; Income transactions are entered manually.
 
 ## Motive
 
@@ -15,6 +15,10 @@ Whether a Transaction is `Income` or `Expense`. Exactly these two values.
 ## Category
 
 One of the Categories on the Category list that a Transaction is classified into. The list is closed at parse time: the LLM must pick from it and never invents new ones. It lives in the `Categories` sheet (Category, Counts as Spending, Added-at), which is created and seeded with the 25 built-in Categories on first read, and it grows only by approval (or by a hand edit to that sheet). Each Category says whether it counts as Spending. If the sheet can't be read, the built-in list is used.
+
+## Category Suggestion
+
+The group of Expense rows whose Suggested Category normalizes to the same spelling. When nothing on the Category list is a clear fit for an Expense, the LLM still files it under the closest Category, and also suggests a short, general kind of expense (never a Merchant), which is written to the row's column F, "Suggested Category". Income never gets one, nor does an Expense whose Merchant has a Category Override. Normalizing lowercases, reads `&` as "and", drops punctuation and makes each word singular, so "Pet Supplies" and "pet supply" are one Category Suggestion, labelled by its first-seen spelling. A Category Suggestion waits for review on the dashboard; approving it adds it to the Category list (as Spending or Money Movement), moves its rows into it and clears their F.
 
 ## Merchant
 

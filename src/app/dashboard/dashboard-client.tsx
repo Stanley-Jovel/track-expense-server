@@ -30,6 +30,8 @@ import { merchantName } from "@/app/services/analytics/merchant";
 import { MonthlyTrendChart, PaceChart } from "./charts";
 import { DeleteConfirm, SwipeRow } from "./entry-actions";
 import { ModifySheet } from "./modify-sheet";
+import { SuggestionsBanner } from "./review-deck";
+import type { CategorySuggestion } from "@/app/services/categories/open-categories";
 import { formatDay, formatMonthLong, formatUsd } from "./format";
 
 export type SerializableTransaction = Omit<SheetTransaction, "date"> & {
@@ -46,6 +48,7 @@ export function DashboardClient({
   fetchedAt,
   categoryList,
   notSpending,
+  suggestions,
 }: {
   transactions: SerializableTransaction[];
   /** Server render time; the deterministic "now" for pace and projections. */
@@ -54,6 +57,8 @@ export function DashboardClient({
   categoryList: readonly string[];
   /** Categories that don't count as Spending (Money Movement). */
   notSpending: readonly string[];
+  /** Category Suggestions waiting for review. */
+  suggestions: CategorySuggestion[];
 }) {
   const transactions = useMemo<SheetTransaction[]>(
     () => raw.map((t) => ({ ...t, date: new Date(t.date) })),
@@ -63,7 +68,15 @@ export function DashboardClient({
 
   const months = useMemo(() => allMonthKeys(transactions), [transactions]);
   const years = useMemo(() => allYearKeys(transactions), [transactions]);
-  const categories = useMemo(() => allCategories(transactions), [transactions]);
+  // The filter offers the loaded list, so a just-approved Category shows up
+  // at once, then any older Category still on rows but no longer listed.
+  const categories = useMemo(
+    () => [
+      ...categoryList,
+      ...allCategories(transactions).filter((c) => !categoryList.includes(c)),
+    ],
+    [categoryList, transactions]
+  );
 
   // The view persists in the URL so a refresh keeps what was on screen.
   const searchParams = useSearchParams();
@@ -270,6 +283,8 @@ export function DashboardClient({
           </p>
         </div>
       </header>
+
+      <SuggestionsBanner suggestions={suggestions} />
 
       {/* Hero figure */}
       <section className="mt-7 text-center">

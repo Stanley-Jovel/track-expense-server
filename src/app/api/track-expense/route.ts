@@ -10,18 +10,27 @@ import {
 import { ParsedTransaction, categoryNames } from '@/app/services/llm/types';
 import { merchantName, sameMerchant } from '@/app/services/analytics/merchant';
 
+// Drops a Transaction's suggested Category, so column F stays blank.
+function withoutSuggestion(t: ParsedTransaction): ParsedTransaction {
+  const rest = { ...t };
+  delete rest.suggestedCategory;
+  return rest;
+}
+
 // A Category Override replaces the LLM's Category for every Expense whose
 // Motive clusters to the overridden Merchant (see GLOSSARY.md). Income keeps
-// its Category: a refund from a Merchant is still Income.
+// its Category: a refund from a Merchant is still Income. The user has
+// already decided where that Merchant belongs, so an override also drops the
+// LLM's suggestion, and Income never carries one.
 function applyCategoryOverrides(
   transactions: ParsedTransaction[],
   overrides: CategoryOverride[]
 ): ParsedTransaction[] {
   return transactions.map((t) => {
-    if (t.type !== 'Expense') return t;
+    if (t.type !== 'Expense') return withoutSuggestion(t);
     const merchant = merchantName(t.motive);
     const override = overrides.find((o) => sameMerchant(o.merchant, merchant));
-    return override ? { ...t, category: override.category } : t;
+    return override ? withoutSuggestion({ ...t, category: override.category }) : t;
   });
 }
 

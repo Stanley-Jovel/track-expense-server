@@ -16,12 +16,13 @@ export function dateToSerial(date: Date): number {
 }
 
 /**
- * Parse one raw sheet row (A:E = date serial, motive, amount, type, category)
+ * Parse one raw sheet row (A:F = date serial, motive, amount, type, category,
+ * suggested category)
  * as returned with valueRenderOption UNFORMATTED_VALUE. Returns null for rows
  * that don't conform; callers skip and count those rather than throw.
  */
 export function parseTransactionRow(row: unknown[]): Transaction | null {
-  const [serial, motive, amount, type, category] = row;
+  const [serial, motive, amount, type, category, suggested] = row;
 
   if (typeof serial !== 'number' || !Number.isFinite(serial)) return null;
   if (typeof motive !== 'string' || motive.length === 0) return null;
@@ -29,12 +30,16 @@ export function parseTransactionRow(row: unknown[]): Transaction | null {
   if (type !== 'Income' && type !== 'Expense') return null;
   if (typeof category !== 'string' || category.length === 0) return null;
 
+  // F is optional: blank (or anything but text) means no Suggestion.
+  const suggestedCategory = typeof suggested === 'string' ? suggested.trim() : '';
+
   return {
     date: serialToDate(serial),
     motive,
     amount,
     type,
     category,
+    ...(suggestedCategory ? { suggestedCategory } : {}),
   };
 }
 

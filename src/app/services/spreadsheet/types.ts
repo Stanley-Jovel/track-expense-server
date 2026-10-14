@@ -9,6 +9,8 @@ export interface Transaction {
   amount: number;
   type: ExpenseType;
   category: string;
+  /** Column F: the Category the LLM suggested, waiting for review. */
+  suggestedCategory?: string;
 }
 
 // A Transaction as read from the sheet, carrying its 1-based sheet row number
@@ -36,6 +38,17 @@ export interface CategoryRewrite {
 }
 
 /**
+ * Rewrite the Suggested Category cell (F) of one existing sheet row, and its
+ * Category cell (E) too when `category` is given. An empty
+ * `suggestedCategory` clears F.
+ */
+export interface SuggestionRewrite {
+  row: number;
+  category?: ExpenseCategory;
+  suggestedCategory: string;
+}
+
+/**
  * A user-chosen Merchant → Category mapping (see GLOSSARY.md: Category
  * Override), one row per Merchant in the CategoryOverrides sheet.
  */
@@ -56,10 +69,14 @@ export interface SpreadsheetService {
    * read or holds no Category, so callers fall back to the built-in list.
    */
   readCategories(): Promise<CategoryEntry[]>;
+  /** Append one Category to the Categories sheet (creating it if missing). */
+  addCategory(entry: CategoryEntry): Promise<void>;
   /**
    * Rewrite the Category column of the given rows, in one batch.
    */
   rewriteCategories(rewrites: CategoryRewrite[]): Promise<void>;
+  /** Rewrite F (and E where given) of the given rows, in one batch. */
+  rewriteSuggestions(rewrites: SuggestionRewrite[]): Promise<void>;
   /**
    * Replace the Date, Motive, amount and Category cells of one existing
    * sheet row (Modify). Type is never rewritten.

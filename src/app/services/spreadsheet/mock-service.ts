@@ -4,6 +4,7 @@ import {
   SheetTransaction,
   SpreadsheetService,
   SpreadsheetPermissionError,
+  SuggestionRewrite,
   TransactionRewrite,
 } from './types';
 import { BUILT_IN_CATEGORIES, CategoryEntry, ParsedTransaction, isExpenseCategory } from '../llm/types';
@@ -21,8 +22,15 @@ export class MockSpreadsheetService implements SpreadsheetService {
   async appendTransaction(data: ParsedTransaction[]): Promise<void> {
     this.failIfAsked();
     const date = new Date();
-    for (const t of data) {
-      this.rows.push({ ...t, date, row: this.rows.length + 2 });
+    for (const { suggestedCategory, ...t } of data) {
+      // A blank F reads back as no suggestion, as it does from the sheet.
+      const suggested = suggestedCategory?.trim();
+      this.rows.push({
+        ...t,
+        ...(suggested ? { suggestedCategory: suggested } : {}),
+        date,
+        row: this.rows.length + 2,
+      });
     }
   }
 
@@ -43,6 +51,26 @@ export class MockSpreadsheetService implements SpreadsheetService {
       const target = this.rows[row - 2];
       if (!target) throw new Error(`No sheet row ${row}`);
       this.rows[row - 2] = { ...target, category };
+    }
+  }
+
+  async addCategory(entry: CategoryEntry): Promise<void> {
+    await this.readCategories();
+    this.categories!.push({ ...entry });
+  }
+
+  async rewriteSuggestions(rewrites: SuggestionRewrite[]): Promise<void> {
+    this.failIfAsked();
+    for (const { row, category, suggestedCategory } of rewrites) {
+      const target = this.rows[row - 2];
+      if (!target) throw new Error(`No sheet row ${row}`);
+      const rest = { ...target };
+      delete rest.suggestedCategory;
+      this.rows[row - 2] = {
+        ...rest,
+        ...(category !== undefined ? { category } : {}),
+        ...(suggestedCategory.trim() ? { suggestedCategory: suggestedCategory.trim() } : {}),
+      };
     }
   }
 

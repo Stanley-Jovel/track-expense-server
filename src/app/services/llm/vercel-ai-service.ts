@@ -40,6 +40,11 @@ export class VercelAIService implements LLMApiService {
       throw new InvalidInputError('No amount found in input');
     }
 
-    return object.parsed_transactions;
+    // The schema's snake_case suggestion becomes ParsedTransaction's field,
+    // present only when the model actually named one.
+    return object.parsed_transactions.map(({ suggested_category, ...t }) => {
+      const suggested = suggested_category?.trim();
+      return suggested ? { ...t, suggestedCategory: suggested } : t;
+    });
   }
 }

@@ -4,6 +4,7 @@ import { getCategories, getTransactions } from "@/app/services/spreadsheet/cache
 import { categoryNames, notSpendingOf } from "@/app/services/llm/types";
 import { DashboardClient, SerializableTransaction } from "./dashboard-client";
 import { RefreshBar } from "./refresh-bar";
+import { listSuggestions } from "./suggestions";
 
 // ISR: regenerate with fresh sheet data at most every 60s (matches the
 // unstable_cache TTL in cached-transactions).
@@ -15,7 +16,11 @@ export const metadata: Metadata = {
 };
 
 export default async function DashboardPage() {
-  const [transactions, categories] = await Promise.all([getTransactions(), getCategories()]);
+  const [transactions, categories, suggestions] = await Promise.all([
+    getTransactions(),
+    getCategories(),
+    listSuggestions(),
+  ]);
   const serializable: SerializableTransaction[] = transactions.map((t) => ({
     ...t,
     date: t.date.toISOString(),
@@ -43,6 +48,7 @@ export default async function DashboardPage() {
           fetchedAt={fetchedAt}
           categoryList={categoryNames(categories)}
           notSpending={notSpendingOf(categories)}
+          suggestions={suggestions}
         />
       </Suspense>
     </div>

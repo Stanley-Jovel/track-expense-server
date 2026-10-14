@@ -31,6 +31,11 @@ describe('parseTransactionRow', () => {
     });
   });
 
+  it('reads a Suggested Category from column F, trimmed', () => {
+    expect(parseTransactionRow([...validRow, ' Pet Supplies '])?.suggestedCategory).toBe('Pet Supplies');
+    expect(parseTransactionRow([...validRow, '  '])).not.toHaveProperty('suggestedCategory');
+  });
+
   it('accepts categories outside the current LLM category list', () => {
     const row = [45659, 'Old automation', 10, 'Expense', 'Some Legacy Category'];
     expect(parseTransactionRow(row)?.category).toBe('Some Legacy Category');
