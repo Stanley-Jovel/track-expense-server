@@ -1,6 +1,6 @@
 # 0006: Respellings and merging into an existing Category
 
-status: open
+status: closed (2026-10-14)
 assignee: —
 labels: wayfinder:task, ready-for-agent
 blocked-by: 0005
@@ -22,14 +22,21 @@ Demo: UNIQLO gets the suggestion "Clothes". The deck offers "No, it's Clothing",
 
 ## Acceptance criteria
 
-- [ ] The spreadsheet service, both real and mock, reads the `CategorySpellings` sheet and records spellings in it, creating the sheet when it's missing.
-- [ ] The ingest check runs in this order: a respelling of a Category, then an `Alias` spelling, otherwise write F.
-- [ ] The listing function adds a hint to each Suggestion: the Category with the highest share of words in common, at 50% or more, ignoring "and", "the", "of" and "for".
-- [ ] The Merge server action records the aliases, rewrites the Category of the Suggestion's rows, clears F, skips changed rows, and busts the caches.
-- [ ] Approve now records aliases for every spelling in the Suggestion.
-- [ ] The deck shows "No, it's X" only when there's a hint, and "It's another category…" always.
-- [ ] Tests:
+- [x] The spreadsheet service, both real and mock, reads the `CategorySpellings` sheet and records spellings in it, creating the sheet when it's missing.
+- [x] The ingest check runs in this order: a respelling of a Category, then an `Alias` spelling, otherwise write F.
+- [x] The listing function adds a hint to each Suggestion: the Category with the highest share of words in common, at 50% or more, ignoring "and", "the", "of" and "for".
+- [x] The Merge server action records the aliases, rewrites the Category of the Suggestion's rows, clears F, skips changed rows, and busts the caches.
+- [x] Approve now records aliases for every spelling in the Suggestion.
+- [x] The deck shows "No, it's X" only when there's a hint, and "It's another category…" always.
+- [x] Tests:
   - At the ingest seam: a respelling is filed under its Category with F blank, an alias is filed under its target, and a failed spellings read still logs the Transaction.
   - At the review seam: a Category look-alike hint, no hint below 50%, Merge moving rows and recording aliases, and Approve recording aliases.
-- [ ] GLOSSARY.md defines Category Spelling.
-- [ ] Lint, type-check and the full test suite pass.
+- [x] GLOSSARY.md defines Category Spelling.
+- [x] Lint, type-check and the full test suite pass.
+
+## Notes
+
+- The look-alike test treats two words as the same when they share a start of at least 5 letters covering the shorter word but for its last letter, so "Clothes" (normalized "clothe") looks like Clothing as the demo needs. That's stemming, not synonym folding: "car" never matches "card", "transfer" never matches "transportation".
+- Approve still adds the Category before moving rows (an Alias must never point at a Category that isn't on the list). If the move fails, the error sends the user to "It's another category…", which finishes the job; tested in approve-suggestion.test.ts.
+- `checkSuggestion` already carries the Dismissed and fold-target branches from the map; 0007 and 0008 test them.
+- The deck changes were type-checked and linted but not checked by hand at 375px (no .env in the build worktree).

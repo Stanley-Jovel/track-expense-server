@@ -189,3 +189,4 @@ Every answer teaches the app that spelling, so I never review the same variant t
 <!-- one line per closed ticket -->
 - 0001 (2026-10-14): The logic prototype validated #2 + #3. Normalization is the only automatic merge, look-alike scores are only hints, and approval forces the Spending decision.
 - 0002 (2026-10-14): The review deck (variant C) won over a dashboard section (A) and chips on the entries (B).
+- 0006 (2026-10-14): Category Spellings live in a CategorySpellings sheet (upsert by normalized spelling). Merge and Approve record the Suggestion's key as an Alias. The look-alike hint matches word stems (5+ shared letters) so Clothes hints Clothing.

@@ -14,9 +14,11 @@ import {
 import { BUILT_IN_CATEGORIES, CategoryEntry, ParsedTransaction, isExpenseCategory } from '../llm/types';
 import { dateToSerial, parseTransactionRows } from './parse-row';
 import { sameMerchant } from '../analytics/merchant';
+import { CategorySpelling, normalize } from '../categories/open-categories';
 
 const OVERRIDES_HEADER = ['Merchant', 'Category', 'Updated-at'];
 const CATEGORIES_HEADER = ['Category', 'Counts as Spending', 'Added-at'];
+const SPELLINGS_HEADER = ['Spelling', 'Outcome', 'Target', 'Updated-at'];
 
 // A hand-edited Spending flag: an unticked checkbox reads as false, a typed
 // FALSE as the string. Anything else (including blank) counts as Spending.
@@ -43,6 +45,7 @@ export class GoogleSheetsService implements SpreadsheetService {
     transactions: process.env.GOOGLE_SHEETS_TRANSACTIONS_SHEET_NAME || 'Transactions',
     categories: 'Categories',
     overrides: 'CategoryOverrides',
+    spellings: 'CategorySpellings',
   }
 
   constructor() {
@@ -341,6 +344,90 @@ export class GoogleSheetsService implements SpreadsheetService {
     }
   }
 
+  async readCategorySpellings(): Promise<CategorySpelling[]> {
+    try {
+      const { rows } = await this.readSpellingRows({ createIfMissing: false });
+      // The sheet is hand-editable (deleting a row undoes an answer): skip
+      // rows that don't hold a spelling and a known outcome, normalize the
+      // spelling, and keep the first row of a repeated one.
+      const spellings: CategorySpelling[] = [];
+      for (const [spelling, outcome, target, updatedAt] of rows) {
+        const key = typeof spelling === 'string' ? normalize(spelling) : '';
+        const targetName = typeof target === 'string' ? target.trim() : '';
+        if (!key || spellings.some((s) => s.spelling === key)) continue;
+        if ((outcome === 'Alias' && targetName) || outcome === 'Dismissed') {
+          spellings.push({ spelling: key, outcome, target: targetName, updatedAt: String(updatedAt ?? '') });
+        }
+      }
+      return spellings;
+    } catch (error: unknown) {
+      throw new SpreadsheetReadError(
+        error instanceof Error ? error.message : 'Unknown error'
+      );
+    }
+  }
+
+  async recordCategorySpellings(spellings: CategorySpelling[]): Promise<void> {
+    if (spellings.length === 0) return;
+    try {
+      const { rows, firstRow } = await this.readSpellingRows({ createIfMissing: true });
+      const sheet = this.sheetNames.spellings;
+      const updates: { range: string; values: string[][] }[] = [];
+      const appends: string[][] = [];
+      for (const s of spellings) {
+        const values = [s.spelling, s.outcome, s.target, s.updatedAt];
+        const index = rows.findIndex(
+          ([spelling]) => typeof spelling === 'string' && normalize(spelling) === s.spelling
+        );
+        if (index === -1) appends.push(values);
+        else {
+          const row = firstRow + index;
+          updates.push({ range: `${sheet}!A${row}:D${row}`, values: [values] });
+        }
+      }
+      if (updates.length > 0) {
+        await this.sheets.spreadsheets.values.batchUpdate({
+          auth: this.auth,
+          spreadsheetId: this.spreadsheetId,
+          requestBody: { valueInputOption: 'RAW', data: updates },
+        });
+      }
+      if (appends.length > 0) {
+        await this.sheets.spreadsheets.values.append({
+          auth: this.auth,
+          spreadsheetId: this.spreadsheetId,
+          range: `${sheet}!A:D`,
+          valueInputOption: 'RAW',
+          requestBody: { values: appends },
+        });
+      }
+    } catch (error: unknown) {
+      throw this.toWriteError(error);
+    }
+  }
+
+  // Data rows of the CategorySpellings sheet, with the sheet row number of
+  // the first one. A missing sheet reads as no spellings; with
+  // createIfMissing it is created, with its header row.
+  private async readSpellingRows({
+    createIfMissing,
+  }: {
+    createIfMissing: boolean;
+  }): Promise<{ rows: unknown[][]; firstRow: number }> {
+    const sheet = this.sheetNames.spellings;
+    if (!(await this.hasSheet(sheet))) {
+      if (createIfMissing) await this.createSheet(sheet, SPELLINGS_HEADER);
+      return { rows: [], firstRow: 2 };
+    }
+    const res = await this.sheets.spreadsheets.values.get({
+      auth: this.auth,
+      spreadsheetId: this.spreadsheetId,
+      range: `${sheet}!A2:D`,
+      valueRenderOption: 'UNFORMATTED_VALUE',
+    });
+    return { rows: res.data.values ?? [], firstRow: firstRowOf(res.data.range, 2) };
+  }
+
   // Data rows of the CategoryOverrides sheet, with the sheet row number of
   // the first one. A missing sheet (checked against the spreadsheet's sheet
   // titles) reads as no overrides; with createIfMissing it is created, with
@@ -373,19 +460,24 @@ export class GoogleSheetsService implements SpreadsheetService {
   }
 
   private async createOverridesSheet(): Promise<void> {
+    await this.createSheet(this.sheetNames.overrides, OVERRIDES_HEADER);
+  }
+
+  // Adds a sheet with just its header row.
+  private async createSheet(title: string, header: string[]): Promise<void> {
     await this.sheets.spreadsheets.batchUpdate({
       auth: this.auth,
       spreadsheetId: this.spreadsheetId,
       requestBody: {
-        requests: [{ addSheet: { properties: { title: this.sheetNames.overrides } } }],
+        requests: [{ addSheet: { properties: { title } } }],
       },
     });
     await this.sheets.spreadsheets.values.update({
       auth: this.auth,
       spreadsheetId: this.spreadsheetId,
-      range: `${this.sheetNames.overrides}!A1:C1`,
+      range: `${title}!A1:${String.fromCharCode(64 + header.length)}1`,
       valueInputOption: 'RAW',
-      requestBody: { values: [OVERRIDES_HEADER] },
+      requestBody: { values: [header] },
     });
   }
 

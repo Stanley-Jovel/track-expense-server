@@ -284,7 +284,7 @@ export function DashboardClient({
         </div>
       </header>
 
-      <SuggestionsBanner suggestions={suggestions} />
+      <SuggestionsBanner suggestions={suggestions} categories={categoryList} />
 
       {/* Hero figure */}
       <section className="mt-7 text-center">

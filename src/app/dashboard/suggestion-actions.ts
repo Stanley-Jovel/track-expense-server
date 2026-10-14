@@ -1,8 +1,16 @@
 'use server';
 
 import { SpreadsheetServiceFactory } from '@/app/services/spreadsheet';
-import type { SheetTransaction, SuggestionRewrite } from '@/app/services/spreadsheet/types';
-import { normalize } from '@/app/services/categories/open-categories';
+import type {
+  SheetTransaction,
+  SpreadsheetService,
+  SuggestionRewrite,
+} from '@/app/services/spreadsheet/types';
+import {
+  CategorySpelling,
+  SpellingOutcome,
+  normalize,
+} from '@/app/services/categories/open-categories';
 import { refreshDashboard } from './actions';
 
 // The review deck's answers (see GLOSSARY.md: Category Suggestion). Each one
@@ -67,9 +75,84 @@ function unchangedRows(
 }
 
 /**
+ * The second half of every answer: record the Suggestion's spellings in the
+ * CategorySpellings sheet, then rewrite each of its rows that is unchanged
+ * since it was listed. Spellings go first: if the rows can't be written, the
+ * same answer can simply be given again (recording is an upsert), and later
+ * Expenses already follow it.
+ *
+ * Every row of a Suggestion normalizes to its key, so the key is its only
+ * spelling.
+ */
+async function recordAndRewrite(
+  sheet: SpreadsheetService,
+  answer: ListedSuggestion,
+  spelling: { outcome: SpellingOutcome; target: string },
+  rewrite: (row: SheetTransaction) => SuggestionRewrite
+): Promise<{ moved: number; skipped: number }> {
+  const rows = await sheet.readTransactions();
+  const unchanged = unchangedRows(rows, answer);
+  const recorded: CategorySpelling = {
+    spelling: answer.key,
+    ...spelling,
+    updatedAt: new Date().toISOString(),
+  };
+  await sheet.recordCategorySpellings([recorded]);
+  await sheet.rewriteSuggestions(unchanged.map(rewrite));
+  return { moved: unchanged.length, skipped: answer.entries.length - unchanged.length };
+}
+
+// Like ingest, a revalidation problem is logged and never turns a saved
+// answer into a failure.
+async function refreshAfter(action: string): Promise<void> {
+  try {
+    await refreshDashboard();
+  } catch (error) {
+    console.error(`${action}: dashboard revalidation failed:`, error);
+  }
+}
+
+/**
+ * Merge a Category Suggestion into a Category already on the list ("No,
+ * it's X" or "It's another category…"): record its spelling as an Alias of
+ * that Category, so later Expenses with it are filed there directly, move
+ * its entries into the Category and clear their F.
+ */
+export async function mergeSuggestion(
+  answer: ListedSuggestion & { into: string }
+): Promise<ReviewResult> {
+  if (!isListedSuggestion(answer) || typeof answer.into !== 'string') {
+    return { ok: false, error: 'Unknown suggestion.' };
+  }
+  let wrote = false;
+  try {
+    const sheet = SpreadsheetServiceFactory.create();
+    const categories = await sheet.readCategories();
+    const into = categories.find((c) => c.name === answer.into)?.name;
+    if (!into) {
+      return { ok: false, error: `${answer.into} is not a category.` };
+    }
+    wrote = true;
+    const { moved, skipped } = await recordAndRewrite(
+      sheet,
+      answer,
+      { outcome: 'Alias', target: into },
+      (t) => ({ row: t.row, category: into, suggestedCategory: '' })
+    );
+    return { ok: true, moved, skipped };
+  } catch (error) {
+    console.error('mergeSuggestion failed:', error);
+    return { ok: false, error: `Couldn't move these into ${answer.into}. Try again.` };
+  } finally {
+    if (wrote) await refreshAfter('mergeSuggestion');
+  }
+}
+
+/**
  * Approve a Category Suggestion as a new Category: add `name` to the
  * Categories sheet with its Spending flag (so the LLM is offered it from the
- * next Expense on), move the Suggestion's entries into it and clear their F.
+ * next Expense on), record the Suggestion's spelling as its Alias, move the
+ * Suggestion's entries into it and clear their F.
  * Refused when `name` is just a spelling of a Category already on the list.
  * Approving always moves the entries.
  */
@@ -104,41 +187,29 @@ export async function approveSuggestion(
       };
     }
 
-    const rows = await sheet.readTransactions();
-    const unchanged = unchangedRows(rows, answer);
-
+    // The Category goes in first: an Alias must never point at a Category
+    // that isn't on the list. If the entries then can't be moved, a retry
+    // would be refused as a duplicate, so the error sends the user to Merge
+    // ("It's another category…"), which finishes the job.
     await sheet.addCategory({ name, countsAsSpending: answer.countsAsSpending });
     added = true;
 
-    const rewrites: SuggestionRewrite[] = unchanged.map((t) => ({
-      row: t.row,
-      category: name,
-      suggestedCategory: '',
-    }));
-    await sheet.rewriteSuggestions(rewrites);
-
-    return {
-      ok: true,
-      moved: rewrites.length,
-      skipped: answer.entries.length - rewrites.length,
-    };
+    const { moved, skipped } = await recordAndRewrite(
+      sheet,
+      answer,
+      { outcome: 'Alias', target: name },
+      (t) => ({ row: t.row, category: name, suggestedCategory: '' })
+    );
+    return { ok: true, moved, skipped };
   } catch (error) {
     console.error('approveSuggestion failed:', error);
     return {
       ok: false,
       error: added
-        ? `Added ${name}, but its entries couldn't be moved. Refresh and check.`
+        ? `Added ${name}, but its entries couldn't be moved. Use "It's another category…" to move them into ${name}.`
         : `Couldn't add ${name}. Try again.`,
     };
   } finally {
-    if (added) {
-      // Like ingest, a revalidation problem is logged and never turns a
-      // saved answer into a failure.
-      try {
-        await refreshDashboard();
-      } catch (error) {
-        console.error('approveSuggestion: dashboard revalidation failed:', error);
-      }
-    }
+    if (added) await refreshAfter('approveSuggestion');
   }
 }

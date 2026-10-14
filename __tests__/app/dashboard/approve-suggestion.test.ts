@@ -1,7 +1,7 @@
 import { revalidateTag } from 'next/cache';
 import { MockSpreadsheetService } from '@/app/services/spreadsheet/mock-service';
 import { listSuggestions } from '@/app/dashboard/suggestions';
-import { approveSuggestion } from '@/app/dashboard/suggestion-actions';
+import { approveSuggestion, mergeSuggestion } from '@/app/dashboard/suggestion-actions';
 import type { CategorySuggestion } from '@/app/services/categories/open-categories';
 
 // The review seam: the listing function and the Approve server action,
@@ -89,6 +89,31 @@ describe('approveSuggestion', () => {
     expect(result).toEqual({ ok: true, moved: 1, skipped: 0 });
     expect(await sheet.readCategories()).toContainEqual({ name: 'Car Fuel', countsAsSpending: false });
     expect((await writtenRows())[2]).toEqual(['Shell Oil 5741', 'Car Fuel', undefined]);
+  });
+
+  it("records the Suggestion's spelling as an Alias of the approved Category", async () => {
+    const fuel = await suggestion('Gas & Fuel');
+
+    await approveSuggestion({ ...fuel, name: 'Car Fuel', countsAsSpending: true });
+
+    expect(await sheet.readCategorySpellings()).toEqual([
+      { spelling: 'gas and fuel', outcome: 'Alias', target: 'Car Fuel', updatedAt: expect.any(String) },
+    ]);
+  });
+
+  it("lets Merge finish an approval whose entries couldn't be moved", async () => {
+    const pets = await suggestion('Pet Supplies');
+    jest.spyOn(console, 'error').mockImplementation(() => {});
+    jest.spyOn(sheet, 'rewriteSuggestions').mockRejectedValueOnce(new Error('quota exceeded'));
+
+    const failed = await approveSuggestion({ ...pets, name: 'Pet Supplies', countsAsSpending: true });
+    const retried = await approveSuggestion({ ...pets, name: 'Pet Supplies', countsAsSpending: true });
+    const merged = await mergeSuggestion({ ...pets, into: 'Pet Supplies' });
+
+    expect(failed).toEqual({ ok: false, error: expect.stringContaining("It's another category") });
+    expect(retried).toEqual({ ok: false, error: 'Pet Supplies is already a category.' });
+    expect(merged).toEqual({ ok: true, moved: 2, skipped: 0 });
+    expect((await writtenRows())[3]).toEqual(['Chewy.com', 'Pet Supplies', undefined]);
   });
 
   it('refuses a name that is a spelling of a Category on the list, writing nothing', async () => {

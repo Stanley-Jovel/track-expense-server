@@ -1,4 +1,5 @@
 import { ParsedTransaction, ExpenseType, ExpenseCategory, CategoryEntry } from '../llm/types';
+import type { CategorySpelling } from '../categories/open-categories';
 
 // A transaction read back from the sheet. `category` is a plain string rather
 // than ExpenseCategory: the sheet is the source of truth and may hold values
@@ -91,6 +92,16 @@ export interface SpreadsheetService {
    * (compared case-insensitively, see sameMerchant).
    */
   upsertCategoryOverride(override: CategoryOverride): Promise<void>;
+  /**
+   * The CategorySpellings sheet (Spelling, Outcome, Target, Updated-at). A
+   * missing sheet reads as no spellings. Throws SpreadsheetReadError.
+   */
+  readCategorySpellings(): Promise<CategorySpelling[]>;
+  /**
+   * Record spellings, creating the sheet if it's missing. A spelling already
+   * in the sheet has its row replaced, so the latest answer wins.
+   */
+  recordCategorySpellings(spellings: CategorySpelling[]): Promise<void>;
 }
 
 export class SpreadsheetReadError extends Error {

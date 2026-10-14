@@ -9,6 +9,7 @@ import {
 } from './types';
 import { BUILT_IN_CATEGORIES, CategoryEntry, ParsedTransaction, isExpenseCategory } from '../llm/types';
 import { sameMerchant } from '../analytics/merchant';
+import type { CategorySpelling } from '../categories/open-categories';
 
 // In-memory sheet. Rows are stored as the sheet would hold them: a fixed
 // timestamp per append and a row number (header is row 1, data from row 2).
@@ -17,6 +18,8 @@ export class MockSpreadsheetService implements SpreadsheetService {
   private overrides: CategoryOverride[] = [];
   // null until the first read creates and seeds the Categories sheet.
   private categories: CategoryEntry[] | null = null;
+  // null until the first record creates the CategorySpellings sheet.
+  private spellings: CategorySpelling[] | null = null;
   private shouldFail = false;
 
   async appendTransaction(data: ParsedTransaction[]): Promise<void> {
@@ -102,6 +105,21 @@ export class MockSpreadsheetService implements SpreadsheetService {
     else this.overrides[i] = { ...override };
   }
 
+  async readCategorySpellings(): Promise<CategorySpelling[]> {
+    this.failIfAsked();
+    return (this.spellings ?? []).map((s) => ({ ...s }));
+  }
+
+  async recordCategorySpellings(spellings: CategorySpelling[]): Promise<void> {
+    this.failIfAsked();
+    this.spellings ??= [];
+    for (const spelling of spellings) {
+      const i = this.spellings.findIndex((s) => s.spelling === spelling.spelling);
+      if (i === -1) this.spellings.push({ ...spelling });
+      else this.spellings[i] = { ...spelling };
+    }
+  }
+
   private failIfAsked(): void {
     if (this.shouldFail) {
       throw new SpreadsheetPermissionError();
@@ -127,5 +145,6 @@ export class MockSpreadsheetService implements SpreadsheetService {
     this.rows = [];
     this.overrides = [];
     this.categories = null;
+    this.spellings = null;
   }
 }

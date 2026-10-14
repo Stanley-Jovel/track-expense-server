@@ -9,6 +9,7 @@ import {
 } from '@/app/services/spreadsheet';
 import { ParsedTransaction, categoryNames } from '@/app/services/llm/types';
 import { merchantName, sameMerchant } from '@/app/services/analytics/merchant';
+import { CategorySpelling, checkSuggestion } from '@/app/services/categories/open-categories';
 
 // Drops a Transaction's suggested Category, so column F stays blank.
 function withoutSuggestion(t: ParsedTransaction): ParsedTransaction {
@@ -31,6 +32,23 @@ function applyCategoryOverrides(
     const merchant = merchantName(t.motive);
     const override = overrides.find((o) => sameMerchant(o.merchant, merchant));
     return override ? withoutSuggestion({ ...t, category: override.category }) : t;
+  });
+}
+
+// A suggestion that means a Category the user already has (a respelling of
+// it, or a spelling recorded as its Alias) is filed under that Category and
+// F stays blank; a dismissed spelling is dropped; anything else waits in F.
+function applySuggestionChecks(
+  transactions: ParsedTransaction[],
+  categories: readonly string[],
+  spellings: readonly CategorySpelling[]
+): ParsedTransaction[] {
+  return transactions.map((t) => {
+    if (!t.suggestedCategory) return t;
+    const check = checkSuggestion(t.suggestedCategory, categories, spellings);
+    if ('file' in check) return withoutSuggestion({ ...t, category: check.file });
+    if ('drop' in check) return withoutSuggestion(t);
+    return { ...t, suggestedCategory: check.suggest };
   });
 }
 
@@ -67,7 +85,18 @@ export async function POST(request: Request) {
       } catch (error) {
         console.error('Failed to read Category Overrides; using LLM categories:', error);
       }
-      const parsedData = applyCategoryOverrides(llmParsed, overrides);
+      const overridden = applyCategoryOverrides(llmParsed, overrides);
+      // Same rule for spellings: if they can't be read, log it and let every
+      // suggestion wait in F (the respelling check still runs).
+      let spellings: CategorySpelling[] = [];
+      if (overridden.some((t) => t.suggestedCategory)) {
+        try {
+          spellings = await spreadsheetService.readCategorySpellings();
+        } catch (error) {
+          console.error('Failed to read Category Spellings; skipping that check:', error);
+        }
+      }
+      const parsedData = applySuggestionChecks(overridden, categories, spellings);
       await spreadsheetService.appendTransaction(parsedData);
 
       // The dashboard caches sheet rows (tagged unstable_cache) and the page

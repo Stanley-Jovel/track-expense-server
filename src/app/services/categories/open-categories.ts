@@ -3,10 +3,9 @@
  * GLOSSARY.md). No I/O here; ingest, the listing function and the review
  * actions read the sheet and hand rows in.
  *
- * Lifted from the logic prototype (branch prototype/open-categories). Later
- * tickets add the ingest check (respellings, aliases, dismissals), the
- * look-alike hint, and Merge, Fold and Dismiss on top of `normalize` and
- * `groupSuggestions`.
+ * Lifted from the logic prototype (branch prototype/open-categories):
+ * `normalize`, grouping rows into Suggestions, the ingest check against the
+ * Category list and the recorded Category Spellings, and the look-alike hint.
  */
 
 // A word's singular form. The length guards keep short words whole: "gas"
@@ -64,7 +63,12 @@ export interface CategorySuggestion {
   label: string;
   entries: SuggestionEntry[];
   total: number;
+  /** What it looks like, if anything (see withHints). Only ever offered. */
+  hint?: SuggestionHint;
 }
+
+/** The answer "No, it's X": a Category the Suggestion looks like. */
+export type SuggestionHint = { kind: 'category'; name: string };
 
 /**
  * The waiting Category Suggestions in `rows`: every Expense row with a
@@ -95,4 +99,104 @@ export function groupSuggestions(rows: readonly SuggestionRow[]): CategorySugges
     group.total = Math.round((group.total + t.amount) * 100) / 100;
   }
   return [...groups.values()];
+}
+
+/** What a recorded spelling resolves to (see GLOSSARY.md: Category Spelling). */
+export type SpellingOutcome = 'Alias' | 'Dismissed';
+
+/**
+ * One row of the CategorySpellings sheet: a normalized spelling the user has
+ * already answered, and what it means from now on. An `Alias` targets a
+ * Category (after Approve or Merge) or a waiting Suggestion's label (after a
+ * fold); a `Dismissed` spelling has no target.
+ */
+export interface CategorySpelling {
+  spelling: string;
+  outcome: SpellingOutcome;
+  target: string;
+  /** ISO timestamp of the last time it was recorded. */
+  updatedAt: string;
+}
+
+/** What ingest does with a suggestion (see checkSuggestion). */
+export type SuggestionCheck =
+  | { file: string } // under this Category, F blank
+  | { suggest: string } // waits for review: this goes in F
+  | { drop: true }; // a dismissed spelling: F blank, the LLM's Category stays
+
+/**
+ * The ingest check for an Expense's suggestion, from the logic prototype:
+ * first match wins. A respelling of a Category is filed there; a recorded
+ * spelling follows its outcome; anything else waits for review in F.
+ */
+export function checkSuggestion(
+  suggestion: string,
+  categories: readonly string[],
+  spellings: readonly CategorySpelling[]
+): SuggestionCheck {
+  const key = normalize(suggestion);
+  const same = categories.find((c) => normalize(c) === key);
+  if (same) return { file: same };
+  const recorded = spellings.find((s) => s.spelling === key);
+  if (recorded?.outcome === 'Alias') {
+    // The target may be a Category spelled differently than on the list, or
+    // the label of a waiting Suggestion (a fold).
+    const category = categories.find((c) => normalize(c) === normalize(recorded.target));
+    return category ? { file: category } : { suggest: recorded.target };
+  }
+  if (recorded?.outcome === 'Dismissed') return { drop: true };
+  return { suggest: suggestion };
+}
+
+// Words too common to make two names look alike.
+const STOP_WORDS = new Set(['and', 'the', 'of', 'for']);
+
+function wordsOf(name: string): string[] {
+  return [...new Set(normalize(name).split(' ').filter((w) => w && !STOP_WORDS.has(w)))];
+}
+
+// Two words count as the same when they share a start of at least 5 letters
+// that covers the shorter word, but for perhaps its last letter: "clothe"
+// (from Clothes) matches "clothing", while "car" never matches "card" and
+// "transfer" never matches "transportation". Word stems only; no synonym
+// folding.
+function sameWord(a: string, b: string): boolean {
+  if (a === b) return true;
+  let common = 0;
+  while (common < a.length && a[common] === b[common]) common++;
+  return common >= 5 && common >= Math.min(a.length, b.length) - 1;
+}
+
+/** The share of words two names have in common: shared / all distinct. */
+function lookAlike(a: string, b: string): number {
+  const A = wordsOf(a);
+  const B = wordsOf(b);
+  const shared = A.filter((w) => B.some((x) => sameWord(w, x))).length;
+  const all = A.length + B.length - shared;
+  return all === 0 ? 0 : shared / all;
+}
+
+/** A hint is shown at 50% of words in common or more. */
+const HINT_THRESHOLD = 0.5;
+
+/**
+ * Each Suggestion with its look-alike hint, if it has one: the Category with
+ * the highest share of words in common, at 50% or more; on a tie the earlier
+ * candidate wins. Only ever offered, never applied: "Pet Insurance" looks
+ * just as much like Insurance as "Clothes" looks like Clothing.
+ */
+export function withHints(
+  suggestions: readonly CategorySuggestion[],
+  categories: readonly string[]
+): CategorySuggestion[] {
+  return suggestions.map((suggestion) => {
+    let best: { hint: SuggestionHint; score: number } | undefined;
+    const consider = (hint: SuggestionHint, name: string) => {
+      const score = lookAlike(suggestion.label, name);
+      if (score >= HINT_THRESHOLD && (!best || score > best.score)) best = { hint, score };
+    };
+    // Categories go first, so a Category wins a tie with anything after.
+    for (const name of categories) consider({ kind: 'category', name }, name);
+    return best ? { ...suggestion, hint: best.hint } : suggestion;
+  });
 }

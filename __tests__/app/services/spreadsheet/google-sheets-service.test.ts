@@ -348,3 +348,78 @@ describe('readCategories', () => {
     await expect(service.readCategories()).rejects.toThrow('no Categories');
   });
 });
+
+describe('readCategorySpellings', () => {
+  it('reads a missing sheet as no spellings, without creating it', async () => {
+    sheetTitles(TX);
+
+    expect(await service.readCategorySpellings()).toEqual([]);
+    expect(api.batchUpdate).not.toHaveBeenCalled();
+  });
+
+  it('reads Alias and Dismissed rows, normalizing hand-typed spellings and skipping the rest', async () => {
+    sheetTitles(TX, 'CategorySpellings');
+    overrideRows('CategorySpellings!A2:D7', [
+      ['clothe', 'Alias', 'Clothing', '2026-10-14T00:00:00.000Z'],
+      ['Gas & Fuels', 'Alias', 'Car Fuel', '2026-10-14T00:00:00.000Z'],
+      ['petz', 'Dismissed', '', '2026-10-14T00:00:00.000Z'],
+      ['toyota', 'Alias', '', ''],
+      ['', 'Alias', 'Clothing', ''],
+      ['venmo', 'Maybe', 'Transfers', ''],
+    ]);
+
+    expect(await service.readCategorySpellings()).toEqual([
+      { spelling: 'clothe', outcome: 'Alias', target: 'Clothing', updatedAt: '2026-10-14T00:00:00.000Z' },
+      { spelling: 'gas and fuel', outcome: 'Alias', target: 'Car Fuel', updatedAt: '2026-10-14T00:00:00.000Z' },
+      { spelling: 'petz', outcome: 'Dismissed', target: '', updatedAt: '2026-10-14T00:00:00.000Z' },
+    ]);
+    expect(ranges(api.values.get)).toEqual(['CategorySpellings!A2:D']);
+  });
+});
+
+describe('recordCategorySpellings', () => {
+  const clothes = { spelling: 'clothe', outcome: 'Alias' as const, target: 'Clothing', updatedAt: 'T2' };
+  const fuel = { spelling: 'gas and fuel', outcome: 'Alias' as const, target: 'Car Fuel', updatedAt: 'T2' };
+
+  it('creates the CategorySpellings sheet, with its header, when it is missing', async () => {
+    sheetTitles(TX);
+
+    await service.recordCategorySpellings([clothes]);
+
+    expect(api.batchUpdate.mock.calls[0][0].requestBody.requests).toEqual([
+      { addSheet: { properties: { title: 'CategorySpellings' } } },
+    ]);
+    const [{ range, requestBody }] = api.values.update.mock.calls[0];
+    expect(range).toBe('CategorySpellings!A1:D1');
+    expect(requestBody.values).toEqual([['Spelling', 'Outcome', 'Target', 'Updated-at']]);
+    expect(api.values.append.mock.calls[0][0]).toEqual(
+      expect.objectContaining({
+        range: 'CategorySpellings!A:D',
+        requestBody: { values: [['clothe', 'Alias', 'Clothing', 'T2']] },
+      })
+    );
+  });
+
+  it("replaces an already-recorded spelling's row and appends new ones", async () => {
+    sheetTitles(TX, 'CategorySpellings');
+    overrideRows('CategorySpellings!A2:D3', [
+      ['petz', 'Dismissed', '', 'T1'],
+      ['Clothes', 'Alias', 'Shopping — General', 'T1'],
+    ]);
+
+    await service.recordCategorySpellings([clothes, fuel]);
+
+    expect(api.values.batchUpdate.mock.calls[0][0].requestBody.data).toEqual([
+      { range: 'CategorySpellings!A3:D3', values: [['clothe', 'Alias', 'Clothing', 'T2']] },
+    ]);
+    expect(api.values.append.mock.calls[0][0].requestBody.values).toEqual([
+      ['gas and fuel', 'Alias', 'Car Fuel', 'T2'],
+    ]);
+  });
+
+  it('makes no call when there is nothing to record', async () => {
+    await service.recordCategorySpellings([]);
+
+    expect(api.get).not.toHaveBeenCalled();
+  });
+});

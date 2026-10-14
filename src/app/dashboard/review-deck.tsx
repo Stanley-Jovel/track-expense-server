@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { merchantName } from "@/app/services/analytics/merchant";
 import type { CategorySuggestion } from "@/app/services/categories/open-categories";
-import { approveSuggestion } from "./suggestion-actions";
+import { approveSuggestion, mergeSuggestion, type ReviewResult } from "./suggestion-actions";
 import { formatUsd } from "./format";
 
 const faint = { color: "var(--ledger-faint)" };
@@ -25,7 +25,14 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
  * Suggestions and opens the review deck. Hidden when nothing is waiting; the
  * deck stays open after the last answer so it can say "All caught up".
  */
-export function SuggestionsBanner({ suggestions }: { suggestions: CategorySuggestion[] }) {
+export function SuggestionsBanner({
+  suggestions,
+  categories,
+}: {
+  suggestions: CategorySuggestion[];
+  /** The Category list, for "It's another category…". */
+  categories: readonly string[];
+}) {
   const [open, setOpen] = useState(false);
   const entries = suggestions.reduce((n, s) => n + s.entries.length, 0);
 
@@ -48,7 +55,13 @@ export function SuggestionsBanner({ suggestions }: { suggestions: CategorySugges
           <span className="shrink-0 text-sm">Review ›</span>
         </button>
       )}
-      {open && <ReviewDeck suggestions={suggestions} onClose={() => setOpen(false)} />}
+      {open && (
+        <ReviewDeck
+          suggestions={suggestions}
+          categories={categories}
+          onClose={() => setOpen(false)}
+        />
+      )}
     </>
   );
 }
@@ -60,9 +73,11 @@ export function SuggestionsBanner({ suggestions }: { suggestions: CategorySugges
  */
 function ReviewDeck({
   suggestions,
+  categories,
   onClose,
 }: {
   suggestions: CategorySuggestion[];
+  categories: readonly string[];
   onClose: () => void;
 }) {
   const [answered, setAnswered] = useState<string[]>([]);
@@ -106,6 +121,7 @@ function ReviewDeck({
             // A fresh card per Suggestion resets its rename and error state.
             key={current.key}
             suggestion={current}
+            categories={categories}
             remaining={deck.length - 1}
             onPendingChange={setPending}
             onAnswered={() => setAnswered((keys) => [...keys, current.key])}
@@ -129,14 +145,19 @@ function ReviewDeck({
   );
 }
 
+// Which answer is in flight, to label its button.
+type Choice = "hint" | "spending" | "movement" | "other";
+
 function SuggestionCard({
   suggestion,
+  categories,
   remaining,
   onPendingChange,
   onAnswered,
   onSkip,
 }: {
   suggestion: CategorySuggestion;
+  categories: readonly string[];
   remaining: number;
   onPendingChange: (pending: boolean) => void;
   onAnswered: () => void;
@@ -144,38 +165,57 @@ function SuggestionCard({
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [choice, setChoice] = useState<"spending" | "movement" | null>(null);
+  const [choice, setChoice] = useState<Choice | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [renaming, setRenaming] = useState(false);
   const [name, setName] = useState(suggestion.label);
   const trimmed = name.trim();
 
-  const approve = (countsAsSpending: boolean) => {
-    if (trimmed === "" || pending) return;
+  // The entries as the deck listed them, so the action can skip any row
+  // that changed since.
+  const listed = {
+    key: suggestion.key,
+    entries: suggestion.entries.map(({ row, motive, amount }) => ({ row, motive, amount })),
+  };
+
+  // Runs one answer. On success the next Suggestion shows; on failure the
+  // error shows inline and this Suggestion stays. Either way the page
+  // refreshes, so a half-done answer (an approval whose entries couldn't
+  // move) shows its new Category in the picker.
+  const answerWith = (next: Choice, act: () => Promise<ReviewResult>, failure: string) => {
+    if (pending) return;
     setError(null);
-    setChoice(countsAsSpending ? "spending" : "movement");
+    setChoice(next);
     onPendingChange(true);
     startTransition(async () => {
       try {
-        const result = await approveSuggestion({
-          key: suggestion.key,
-          entries: suggestion.entries.map(({ row, motive, amount }) => ({ row, motive, amount })),
-          name: trimmed,
-          countsAsSpending,
-        });
-        if (result.ok) {
-          onAnswered();
-          router.refresh();
-        } else {
-          setError(result.error);
-        }
+        const result = await act();
+        if (result.ok) onAnswered();
+        else setError(result.error);
       } catch {
-        setError(`Couldn't add ${trimmed}. Try again.`);
+        setError(failure);
       } finally {
         onPendingChange(false);
+        router.refresh();
       }
     });
   };
+
+  const approve = (countsAsSpending: boolean) => {
+    if (trimmed === "") return;
+    answerWith(
+      countsAsSpending ? "spending" : "movement",
+      () => approveSuggestion({ ...listed, name: trimmed, countsAsSpending }),
+      `Couldn't add ${trimmed}. Try again.`
+    );
+  };
+
+  const merge = (into: string, via: Choice) =>
+    answerWith(
+      via,
+      () => mergeSuggestion({ ...listed, into }),
+      `Couldn't move these into ${into}. Try again.`
+    );
 
   const count = suggestion.entries.length;
 
@@ -237,6 +277,19 @@ function SuggestionCard({
       )}
 
       <div className="flex flex-col gap-2">
+        {suggestion.hint && (
+          <button
+            onClick={() => merge(suggestion.hint!.name, "hint")}
+            disabled={pending}
+            className={answer}
+            style={rule}
+          >
+            {pending && choice === "hint" ? "Moving…" : `No, it's ${suggestion.hint.name}`}
+            <span className="block text-xs italic" style={faint}>
+              existing category
+            </span>
+          </button>
+        )}
         <button
           onClick={() => approve(true)}
           disabled={pending || trimmed === ""}
@@ -256,6 +309,29 @@ function SuggestionCard({
             savings, transfers, loan principal: not Spending
           </span>
         </button>
+        {/* A native picker: a wheel on the iPhone. Picking a Category is the
+            answer, as tapping a button is. */}
+        <label className={`${answer} relative flex items-center`} style={rule}>
+          <span>
+            {pending && choice === "other" ? "Moving…" : "It’s another category…"}
+          </span>
+          <select
+            value=""
+            disabled={pending}
+            onChange={(e) => e.target.value && merge(e.target.value, "other")}
+            aria-label="It's another category"
+            className="absolute inset-0 cursor-pointer opacity-0"
+          >
+            <option value="" disabled>
+              Move these into…
+            </option>
+            {categories.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
 
       <div className="flex items-center justify-between text-xs" style={faint}>
