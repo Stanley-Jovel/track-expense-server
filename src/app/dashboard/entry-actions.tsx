@@ -7,6 +7,9 @@ import { formatUsd } from "./format";
 
 // Width of the action tray revealed behind a swiped entry: two actions.
 const TRAY = 176;
+// How far an open entry slides: the tray plus a gap so the entry's amount
+// doesn't sit flush against the Modify button.
+const OPEN = TRAY + 12;
 
 /**
  * An entry that slides left to reveal its actions (iOS-style): Modify and
@@ -44,31 +47,33 @@ export function SwipeRow({
   // Set when a gesture moved the entry, so the click that ends it doesn't
   // also land on whatever is underneath.
   const swallowClick = useRef(false);
-  const surface = useRef<HTMLDivElement>(null);
+  const container = useRef<HTMLDivElement>(null);
 
-  const rest = open ? -TRAY : 0;
+  const rest = open ? -OPEN : 0;
   const offset = drag ?? rest;
 
   // Trackpad swipes arrive as wheel events with no "end" event, so the entry
   // follows deltaX and settles once the events stop. React's onWheel is
   // passive and can't preventDefault, which is needed here to keep the
-  // browser from treating the swipe as back/forward navigation.
+  // browser from treating the swipe as back/forward navigation. The listener
+  // sits on the whole row, not the sliding entry, so the swipe keeps going
+  // once the cursor ends up over the tray's buttons.
   const latest = useRef({ open, onOpenChange });
   latest.current = { open, onOpenChange };
   useEffect(() => {
-    const node = surface.current;
+    const node = container.current;
     if (!node) return;
     let wheelOffset: number | null = null;
     let settle: ReturnType<typeof setTimeout> | undefined;
     const onWheel = (e: WheelEvent) => {
       if (wheelOffset === null && Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return;
       e.preventDefault();
-      const base = wheelOffset ?? (latest.current.open ? -TRAY : 0);
-      wheelOffset = Math.max(-TRAY * 1.25, Math.min(0, base - e.deltaX));
+      const base = wheelOffset ?? (latest.current.open ? -OPEN : 0);
+      wheelOffset = Math.max(-OPEN * 1.25, Math.min(0, base - e.deltaX));
       setDrag(wheelOffset);
       clearTimeout(settle);
       settle = setTimeout(() => {
-        latest.current.onOpenChange(wheelOffset! < -TRAY / 2);
+        latest.current.onOpenChange(wheelOffset! < -OPEN / 2);
         wheelOffset = null;
         setDrag(null);
       }, 120);
@@ -81,7 +86,7 @@ export function SwipeRow({
   }, []);
 
   return (
-    <div className="relative overflow-hidden">
+    <div ref={container} className="relative overflow-hidden">
       <div className="absolute inset-y-0 right-0 flex" style={{ width: TRAY }}>
         <button
           type="button"
@@ -107,7 +112,6 @@ export function SwipeRow({
         </button>
       </div>
       <div
-        ref={surface}
         className="relative"
         style={{
           // Keep a mouse drag from selecting the entry's text.
@@ -138,13 +142,13 @@ export function SwipeRow({
           }
           if (g.axis !== "x") return;
           swallowClick.current = true;
-          setDrag(Math.max(-TRAY * 1.25, Math.min(0, g.base + dx)));
+          setDrag(Math.max(-OPEN * 1.25, Math.min(0, g.base + dx)));
         }}
         onPointerUp={() => {
           const g = gesture.current;
           gesture.current = null;
           if (g?.axis === "x" && drag !== null) {
-            onOpenChange(drag < -TRAY / 2);
+            onOpenChange(drag < -OPEN / 2);
           } else if (g?.axis === null && open) {
             // A plain tap on an open entry just closes it.
             swallowClick.current = true;
