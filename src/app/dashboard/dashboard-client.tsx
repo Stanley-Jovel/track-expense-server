@@ -523,7 +523,7 @@ export function DashboardClient({
         <div key={label}>
           <BlockTitle>{label}</BlockTitle>
           <List strong inset>
-            {rows.map((t) => (
+            {rows.map((t, i) => (
               <li
                 key={t.row}
                 data-row={t.row}
@@ -546,6 +546,9 @@ export function DashboardClient({
                 >
                   <ListItem
                     component="div"
+                    // The swipe wrapper hides each row from Konsta's
+                    // last-child rule, so drop the group's last divider here.
+                    dividers={i < rows.length - 1}
                     media={<CategoryIcon category={t.category} />}
                     title={<span title={t.motive}>{t.merchant}</span>}
                     footer={sort === "largest" ? `${t.category} · ${formatDay(t.date)}` : t.category}
