@@ -79,6 +79,16 @@ describe('appendTransaction', () => {
       ['Starbucks', '7', 'Expense', 'Coffee & Quick Bites', ''],
     ]);
   });
+
+  it('stamps a given timestamp as its UTC wall-clock, whatever the server timezone', async () => {
+    await service.appendTransaction(
+      [{ motive: 'Farmers market', amount: 8.75, type: 'Expense', category: 'Groceries' }],
+      new Date('2026-10-02T21:15:30.000Z')
+    );
+
+    const [{ requestBody }] = api.values.append.mock.calls[0];
+    expect(requestBody.values[0][0]).toBe('10/02/2026, 21:15:30');
+  });
 });
 
 describe('rewriteSuggestions', () => {

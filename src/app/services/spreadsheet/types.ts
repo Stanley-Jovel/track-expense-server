@@ -62,7 +62,11 @@ export interface CategoryOverride {
 }
 
 export interface SpreadsheetService {
-  appendTransaction(data: ParsedTransaction[]): Promise<void>;
+  /**
+   * Appends rows stamped with `at` (UTC wall-clock, like every sheet date),
+   * or with now when it's left out, as ingest does.
+   */
+  appendTransaction(data: ParsedTransaction[], at?: Date): Promise<void>;
   readTransactions(): Promise<SheetTransaction[]>;
   /**
    * The Category list from the Categories sheet (Category, Counts as

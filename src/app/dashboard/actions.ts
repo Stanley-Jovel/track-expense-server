@@ -5,6 +5,13 @@ import { SpreadsheetServiceFactory, readCategoriesOrBuiltIn } from '@/app/servic
 import { merchantName, sameMerchant } from '@/app/services/analytics/merchant';
 import { Category, CategoryList, categoryList } from '@/app/services/categories/category-list';
 import { SHEET_CACHE_TAGS } from '@/app/services/spreadsheet/cache-tags';
+import { LLMServiceFactory } from '@/app/services/llm';
+import type { ExpenseType, ParsedTransaction } from '@/app/services/llm/types';
+import {
+  fileTransactions,
+  overrideFor,
+  readCategoryOverridesOrNone,
+} from '@/app/services/categories/file-transactions';
 
 /**
  * Busts both cache layers behind the dashboard — the tagged unstable_cache
@@ -82,6 +89,36 @@ export async function correctMerchantCategory(
   }
 }
 
+// The fields Modify and Add Entry share, checked the same way. A server
+// action is a public endpoint, so nothing about their types is assumed.
+function checkEntryFields(fields: {
+  motive: unknown;
+  amount: unknown;
+  day: unknown;
+}): { ok: true; motive: string; amount: number; day: string } | { ok: false; error: string } {
+  const motive = typeof fields?.motive === 'string' ? fields.motive.trim() : '';
+  if (motive === '') {
+    return { ok: false, error: 'Enter a name.' };
+  }
+  const { amount, day } = fields;
+  if (typeof amount !== 'number' || !Number.isFinite(amount) || amount <= 0) {
+    return { ok: false, error: 'Enter an amount greater than $0.' };
+  }
+  if (typeof day !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(day)) {
+    return { ok: false, error: 'Enter a valid date.' };
+  }
+  return { ok: true, motive, amount: Math.round(amount * 100) / 100, day };
+}
+
+// `day` at the time of day of `time` (UTC wall-clock, like the sheet), or
+// null if `day` isn't a real calendar day (such as 2026-02-30).
+function onDay(day: string, time: Date): Date | null {
+  const date = new Date(`${day}${time.toISOString().slice(10)}`);
+  return Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== day ? null : date;
+}
+
+const unknownCategory = (category: string) => `"${category}" is not a known Category`;
+
 export type TransactionEdit = {
   motive: string;
   category: string;
@@ -115,17 +152,9 @@ export async function modifyTransaction(
   if (!Number.isInteger(row) || row < 2) {
     return { ok: false, error: 'Unknown entry.' };
   }
-  const nextMotive = typeof edit?.motive === 'string' ? edit.motive.trim() : '';
-  if (nextMotive === '') {
-    return { ok: false, error: 'Enter a name.' };
-  }
-  if (typeof edit.amount !== 'number' || !Number.isFinite(edit.amount) || edit.amount <= 0) {
-    return { ok: false, error: 'Enter an amount greater than $0.' };
-  }
-  const cents = Math.round(edit.amount * 100) / 100;
-  if (typeof edit.day !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(edit.day)) {
-    return { ok: false, error: 'Enter a valid date.' };
-  }
+  const fields = checkEntryFields(edit);
+  if (!fields.ok) return fields;
+  const { motive: nextMotive, amount: cents } = fields;
 
   let written = false;
   try {
@@ -138,10 +167,10 @@ export async function modifyTransaction(
     // row already holds (rows written before the current list existed).
     const categories = await loadCategoryList();
     if (!categories.has(edit.category) && edit.category !== current.category) {
-      return { ok: false, error: `"${edit.category}" is not a known Category` };
+      return { ok: false, error: unknownCategory(edit.category) };
     }
-    const date = new Date(`${edit.day}${current.date.toISOString().slice(10)}`);
-    if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== edit.day) {
+    const date = onDay(fields.day, current.date);
+    if (!date) {
       return { ok: false, error: 'Enter a valid date.' };
     }
 
@@ -178,6 +207,102 @@ export async function modifyTransaction(
         await refreshDashboard();
       } catch (error) {
         console.error('modifyTransaction: dashboard revalidation failed:', error);
+      }
+    }
+  }
+}
+
+export type NewTransaction = {
+  type: ExpenseType;
+  motive: string;
+  amount: number;
+  /** The calendar day, YYYY-MM-DD; the entry gets the time of saving. */
+  day: string;
+  /** A Category from the list, or blank to have one chosen on save. */
+  category: string;
+};
+
+export type AdditionResult = { ok: true } | { ok: false; error: string };
+
+const COULDNT_GUESS = "Couldn't guess a category. Pick one or try again.";
+
+/**
+ * Add Entry: append one Transaction typed in on the dashboard, on the chosen
+ * day at the time of saving. A picked Category must be on the list and
+ * stands as is (no Category Override, F blank). A blank one is chosen the
+ * way ingest chooses: the Merchant's Category Override if there is one,
+ * otherwise the LLM's Category and suggestion, through the suggestion checks.
+ * If no Category can be chosen, nothing is written.
+ */
+export async function addTransaction(entry: NewTransaction): Promise<AdditionResult> {
+  // A server action is a public endpoint: validate everything at runtime.
+  const fields = checkEntryFields(entry);
+  if (!fields.ok) return fields;
+  const type = entry.type;
+  if (type !== 'Expense' && type !== 'Income') {
+    return { ok: false, error: 'Choose Expense or Income.' };
+  }
+  const category = typeof entry.category === 'string' ? entry.category : '';
+  const now = new Date();
+  const date = onDay(fields.day, now);
+  // The day comes from the user's own calendar. The latest one on Earth
+  // (UTC+14) bounds "today" without knowing their timezone.
+  const latestToday = new Date(now.getTime() + 14 * 3_600_000).toISOString().slice(0, 10);
+  if (!date || fields.day > latestToday) {
+    return { ok: false, error: 'Enter a valid date, today or earlier.' };
+  }
+  const { motive, amount } = fields;
+
+  let written = false;
+  try {
+    const sheet = SpreadsheetServiceFactory.create();
+    const categories = await loadCategoryList();
+
+    let transaction: ParsedTransaction;
+    if (category !== '') {
+      if (!categories.has(category)) {
+        return { ok: false, error: unknownCategory(category) };
+      }
+      transaction = { motive, amount, type, category };
+    } else {
+      const overrides = await readCategoryOverridesOrNone(sheet, categories.names);
+      const override = overrideFor({ type, motive }, overrides);
+      if (override) {
+        transaction = { motive, amount, type, category: override.category };
+      } else {
+        // The LLM only chooses the Category (and maybe a suggestion); the
+        // entry's own Type, Motive and amount stand.
+        let guess: ParsedTransaction | undefined;
+        try {
+          [guess] = await LLMServiceFactory.create().parseTransaction(
+            `${type}: ${motive} $${amount.toFixed(2)}`,
+            categories.names
+          );
+        } catch (error) {
+          console.error('addTransaction: Category guess failed:', error);
+        }
+        if (!guess) return { ok: false, error: COULDNT_GUESS };
+        [transaction] = await fileTransactions(
+          [{ motive, amount, type, category: guess.category, suggestedCategory: guess.suggestedCategory }],
+          categories.names,
+          overrides,
+          sheet
+        );
+      }
+    }
+
+    await sheet.appendTransaction([transaction], date);
+    written = true;
+    return { ok: true };
+  } catch (error) {
+    console.error('addTransaction failed:', error);
+    return { ok: false, error: "Couldn't add the entry. Try again." };
+  } finally {
+    if (written) {
+      try {
+        await refreshDashboard();
+      } catch (error) {
+        console.error('addTransaction: dashboard revalidation failed:', error);
       }
     }
   }

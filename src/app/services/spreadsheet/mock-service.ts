@@ -23,9 +23,9 @@ export class MockSpreadsheetService implements SpreadsheetService {
   private spellings: CategorySpelling[] | null = null;
   private shouldFail = false;
 
-  async appendTransaction(data: ParsedTransaction[]): Promise<void> {
+  async appendTransaction(data: ParsedTransaction[], at?: Date): Promise<void> {
     this.failIfAsked();
-    const date = new Date();
+    const date = at ?? new Date();
     for (const t of data) {
       // A blank F reads back as no suggestion, as it does from the sheet.
       this.rows.push(

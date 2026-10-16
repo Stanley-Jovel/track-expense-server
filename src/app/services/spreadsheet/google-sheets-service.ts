@@ -82,8 +82,10 @@ export class GoogleSheetsService implements SpreadsheetService {
     this.spreadsheetId = spreadsheetId;
   }
 
-  private formatDate(date: Date): string {
+  // `timeZone` is the server's own unless given; on Vercel that's UTC.
+  private formatDate(date: Date, timeZone?: string): string {
     return date.toLocaleString('en-US', {
+      timeZone,
       month: '2-digit',
       day: '2-digit',
       year: 'numeric',
@@ -94,9 +96,11 @@ export class GoogleSheetsService implements SpreadsheetService {
     });
   }
 
-  async appendTransaction(transactions: ParsedTransaction[]): Promise<void> {
+  async appendTransaction(transactions: ParsedTransaction[], at?: Date): Promise<void> {
     try {
-      const currentTimestamp = this.formatDate(new Date());
+      // A given timestamp is already UTC wall-clock, so it's written as UTC
+      // wherever the server runs; now keeps ingest's long-standing format.
+      const currentTimestamp = at ? this.formatDate(at, 'UTC') : this.formatDate(new Date());
 
       const rows = transactions.map(transaction => [
         currentTimestamp,
