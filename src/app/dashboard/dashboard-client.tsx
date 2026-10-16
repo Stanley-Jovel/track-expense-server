@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { Plus } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import {
@@ -29,7 +30,7 @@ import {
 import { merchantName } from "@/app/services/analytics/merchant";
 import { MonthlyTrendChart, PaceChart } from "./charts";
 import { DeleteConfirm, SwipeRow } from "./entry-actions";
-import { ModifySheet } from "./modify-sheet";
+import { AddedEntry, EntrySheet } from "./entry-sheet";
 import { SuggestionsBanner } from "./review-deck";
 import type { CategorySuggestion } from "@/app/services/categories/open-categories";
 import { CategoryEntry, categoryList } from "@/app/services/categories/category-list";
@@ -109,6 +110,13 @@ export function DashboardClient({
   const [swipedRow, setSwipedRow] = useState<number | null>(null);
   const [modifyRow, setModifyRow] = useState<number | null>(null);
   const [confirmRow, setConfirmRow] = useState<number | null>(null);
+  // Add Entry: whether its sheet is open; the entry just added, waiting for
+  // the refreshed rows to include it (only rows past `after` can be it); the
+  // row then highlighted; and the note shown when the filters hide it.
+  const [adding, setAdding] = useState(false);
+  const [justAdded, setJustAdded] = useState<(AddedEntry & { after: number }) | null>(null);
+  const [highlightRow, setHighlightRow] = useState<number | null>(null);
+  const [hiddenNote, setHiddenNote] = useState<string | null>(null);
 
   useEffect(() => {
     const params = new URLSearchParams();
@@ -171,6 +179,56 @@ export function DashboardClient({
       return sort === "oldest" ? diff : -diff;
     });
   }, [transactions, filter, search, sort]);
+
+  // Once the refreshed rows include the entry just added (appended, so the
+  // last matching row), highlight it. Give up quietly if it never shows.
+  useEffect(() => {
+    if (justAdded === null) return;
+    const match = transactions
+      .filter(
+        (t) =>
+          t.row > justAdded.after &&
+          t.type === justAdded.type &&
+          t.motive === justAdded.motive &&
+          t.amount === justAdded.amount
+      )
+      .sort((a, b) => b.row - a.row)[0];
+    if (match) {
+      setJustAdded(null);
+      setHighlightRow(match.row);
+      return;
+    }
+    const id = setTimeout(() => setJustAdded(null), 15_000);
+    return () => clearTimeout(id);
+  }, [justAdded, transactions]);
+
+  // Bring the highlighted entry into view (showing more rows if it's further
+  // down) and flash it; if the current filters hide it, say so instead.
+  useEffect(() => {
+    if (highlightRow === null) return;
+    const index = listed.findIndex((t) => t.row === highlightRow);
+    if (index === -1) {
+      const t = transactions.find((t) => t.row === highlightRow);
+      setHiddenNote(t ? `Added for ${formatDay(t.date)} · not in this view` : null);
+      setHighlightRow(null);
+      return;
+    }
+    if (index >= visibleCount) {
+      setVisibleCount(index + 1);
+      return; // runs again once the row is rendered
+    }
+    document
+      .querySelector(`[data-row="${highlightRow}"]`)
+      ?.scrollIntoView({ behavior: "smooth", block: "center" });
+    const id = setTimeout(() => setHighlightRow(null), 2500);
+    return () => clearTimeout(id);
+  }, [highlightRow, listed, transactions, visibleCount]);
+
+  useEffect(() => {
+    if (hiddenNote === null) return;
+    const id = setTimeout(() => setHiddenNote(null), 3500);
+    return () => clearTimeout(id);
+  }, [hiddenNote]);
 
   // Arrows step through siblings of the current period, oldest → newest.
   const siblings = yearly ? years : months;
@@ -510,13 +568,38 @@ export function DashboardClient({
           </SelectContent>
         </Select>
       </div>
+      <button
+        onClick={() => {
+          setSwipedRow(null);
+          setAdding(true);
+        }}
+        className="flex w-full items-center gap-2 border-b border-dashed py-3 text-sm italic"
+        style={{ borderColor: "var(--ledger-rule)", color: "var(--ledger-faint)" }}
+      >
+        <Plus className="h-4 w-4" />
+        Add an entry
+      </button>
+      {adding && (
+        <EntrySheet
+          mode="add"
+          categories={categoryNames}
+          onAdded={(entry) =>
+            setJustAdded({ ...entry, after: Math.max(0, ...transactions.map((t) => t.row)) })
+          }
+          onClose={() => setAdding(false)}
+        />
+      )}
       {listed.length === 0 && <EmptyNote />}
       <div>
         {listed.slice(0, visibleCount).map((t) => (
           <div
             key={t.row}
-            className="border-b last:border-0"
-            style={{ borderColor: "var(--ledger-rule)" }}
+            data-row={t.row}
+            className="border-b transition-colors duration-700 last:border-0"
+            style={{
+              borderColor: "var(--ledger-rule)",
+              background: highlightRow === t.row ? "var(--ledger-rule)" : undefined,
+            }}
           >
             <SwipeRow
               open={swipedRow === t.row}
@@ -551,7 +634,7 @@ export function DashboardClient({
               </div>
             </SwipeRow>
             {modifyRow === t.row && (
-              <ModifySheet
+              <EntrySheet
                 row={t.row}
                 motive={t.motive}
                 merchant={t.merchant}
@@ -588,6 +671,19 @@ export function DashboardClient({
         >
           Show more ({listed.length - visibleCount} remaining)
         </button>
+      )}
+      {hiddenNote && (
+        <p
+          role="status"
+          className="fixed left-1/2 z-50 -translate-x-1/2 whitespace-nowrap border px-3 py-1.5 text-xs italic shadow"
+          style={{
+            bottom: "calc(1.5rem + env(safe-area-inset-bottom))",
+            background: "var(--ledger-card)",
+            borderColor: "var(--ledger-rule)",
+          }}
+        >
+          {hiddenNote}
+        </p>
       )}
     </main>
   );

@@ -2,7 +2,11 @@
 
 ## Transaction
 
-A single money event logged to the Transactions sheet: a timestamp, a Motive, an amount, a Type, a Category and, for an Expense that fits no Category well, a Suggested Category (column F; see Category Suggestion). Most transactions arrive automatically via Apple Pay automations; Income transactions are entered manually.
+A single money event logged to the Transactions sheet: a timestamp, a Motive, an amount, a Type, a Category and, for an Expense that fits no Category well, a Suggested Category (column F; see Category Suggestion). Most transactions arrive automatically via Apple Pay automations; Income and anything else can be typed in on the dashboard as an Entry.
+
+## Entry
+
+A Transaction typed in on the dashboard with "Add an entry", rather than logged by ingest. The user sets its Type, Motive, amount and day (today or earlier; it's stamped with the time of saving). Its Category is optional: a picked one must be on the Category list and stands as is, even over a Category Override. A blank one is chosen on save the way ingest chooses (the Merchant's Category Override, otherwise the LLM, whose Category Suggestion can land in column F), and can be changed afterwards with Modify. If no Category can be chosen, the Entry isn't saved.
 
 ## Motive
 
