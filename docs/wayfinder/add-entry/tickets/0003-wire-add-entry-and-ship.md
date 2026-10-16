@@ -1,7 +1,7 @@
 # 0003: Wire Add Entry into the dashboard, ship and verify
 
-status: open
-assignee: —
+status: closed (2026-10-16)
+assignee: stanley (claude session, 2026-10-16)
 labels: wayfinder:task
 blocked-by: 0001, 0002
 
@@ -16,7 +16,14 @@ blocked-by: 0001, 0002
 
 ## Acceptance criteria
 
-- [ ] At 375px and on the user's iPhone, a backdated cash Expense with a blank Category and an Income entry are added from the dashboard and land on the right day, the blank one with a sensible Category.
-- [ ] Changing the chosen Category with Modify works.
-- [ ] Modify still works as before.
-- [ ] The map's Decisions so far is updated and its status is set to closed.
+- [x] At 375px and on the user's iPhone, a backdated cash Expense with a blank Category and an Income entry are added from the dashboard and land on the right day, the blank one with a sensible Category.
+- [x] Changing the chosen Category with Modify works.
+- [x] Modify still works as before.
+- [x] The map's Decisions so far is updated and its status is set to closed.
+
+## Notes
+
+- 2026-10-16: Shipped to main (0c3bf03) and the Vercel deploy succeeded. `modify-sheet.tsx` was renamed to `entry-sheet.tsx` (`EntrySheet`, with `mode: 'add' | 'modify'`).
+- The highlight finds the new entry in the refreshed rows as the last row past the previous highest one with the same Type, Motive and amount. If it never shows up, it gives up quietly after 15s.
+- Local checking covered the sheet in add mode at 375px and a failed save (the error shows inline and the input is kept). It didn't cover a successful write: the spreadsheet has no `Test` tab, and local saves would have written to the real Transactions sheet.
+- On the user's iPhone in production, a backdated cash Expense with a blank Category and an Income entry both landed on the right day with the right Category, and Modify still works.

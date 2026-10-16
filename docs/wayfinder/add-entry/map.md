@@ -2,7 +2,7 @@
 
 labels: `wayfinder:map`, `ready-for-agent`
 tickets: [tickets/](tickets/)
-status: open
+status: closed
 
 ## Problem Statement
 
@@ -94,3 +94,4 @@ An **"Add an entry"** row at the top of the Entries list opens the same bottom s
 <!-- one line per closed ticket -->
 - 0001 (2026-10-16): The list row (C) won over a floating "+" (A) and a header "+" (B). After seeing it, the user made Category optional: a blank one is chosen on save by the ingest path (Override, then LLM), changeable with Modify, and a failed choice saves nothing. No lasting "guessed" marker.
 - 0002 (2026-10-16): `addTransaction` shipped test-first. Ingest's filing steps (Override, then suggestion checks) now live in `services/categories/file-transactions.ts` and are shared with it. `appendTransaction` takes an optional timestamp, written as UTC. A future day is any day past the latest one on Earth (UTC+14).
+- 0003 (2026-10-16): Shipped to main (0c3bf03) and verified on the iPhone: a backdated cash Expense with a blank Category and an Income entry landed on the right day with the right Category, and Modify still works. The sheet is now `EntrySheet` in `entry-sheet.tsx`. GLOSSARY gains Entry.
