@@ -2,15 +2,14 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { RefreshCw } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { refreshDashboard } from "./actions";
 
 /**
- * Slim bar above the dashboard: shows how old the rendered data is and a
- * button that busts the sheet/ISR caches and re-renders with fresh rows.
+ * Refresh for the navbar: busts the sheet/ISR caches and re-renders with
+ * fresh rows. Also reports how old the rendered data is ("Updated 2m ago"),
+ * or null until mounted so server and client HTML match.
  */
-export function RefreshBar({ fetchedAt }: { fetchedAt: number }) {
+export function useRefresh(fetchedAt: number) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const age = useAgeSeconds(fetchedAt);
@@ -21,24 +20,11 @@ export function RefreshBar({ fetchedAt }: { fetchedAt: number }) {
       router.refresh();
     });
 
-  return (
-    <div className="mx-auto -mb-2 flex max-w-5xl items-center justify-between gap-2 px-4 pt-4 sm:px-6">
-      <p className="text-xs text-muted-foreground">
-        {/* non-breaking space keeps the row height stable pre-mount */}
-        {age === null ? " " : `Updated ${formatAge(age)}`}
-      </p>
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={refresh}
-        disabled={pending}
-        className="h-7 gap-1.5 px-2.5 text-xs"
-      >
-        <RefreshCw className={`h-3.5 w-3.5 ${pending ? "animate-spin" : ""}`} />
-        {pending ? "Refreshing…" : "Refresh"}
-      </Button>
-    </div>
-  );
+  return {
+    refresh,
+    pending,
+    updated: pending ? "Refreshing…" : age === null ? null : `Updated ${formatAge(age)}`,
+  };
 }
 
 // Seconds since the page was rendered on the server. Returns null until

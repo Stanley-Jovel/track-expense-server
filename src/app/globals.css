@@ -1,8 +1,9 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-
-@custom-variant dark (&:is(.dark *));
+/* Konsta UI (iOS theme) for /dashboard. Its @theme owns --color-primary and
+   its dark variant (.dark and descendants) replaces shadcn's. */
+@import "konsta/react/theme.css";
 
 /* Un-layered rules beat Tailwind's layered utilities, so keep this block
    minimal: no resets (preflight covers them) and no fonts (the theme does). */
@@ -44,8 +45,6 @@ body {
   --color-muted: var(--muted);
   --color-secondary-foreground: var(--secondary-foreground);
   --color-secondary: var(--secondary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-primary: var(--primary);
   --color-popover-foreground: var(--popover-foreground);
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
@@ -59,29 +58,6 @@ body {
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
-}
-
-/* Ledger identity for /dashboard (dashboard v2: editorial, paper + serif).
-   up/down are directions of spending change: more spent wears the warm ink. */
-:root {
-  --ledger-paper: #f5f1e6;
-  --ledger-card: #fffdf5;
-  --ledger-ink: #1c1a16;
-  --ledger-faint: #8a8577;
-  --ledger-rule: #d9d4c5;
-  --ledger-up: #9c3c1e;
-  --ledger-down: #3d6b35;
-  --font-ledger: Georgia, 'Times New Roman', serif;
-}
-
-.dark {
-  --ledger-paper: #171410;
-  --ledger-card: #201c16;
-  --ledger-ink: #e8e2d2;
-  --ledger-faint: #948d7c;
-  --ledger-rule: #3b362b;
-  --ledger-up: #d2744f;
-  --ledger-down: #8fb67f;
 }
 
 :root {

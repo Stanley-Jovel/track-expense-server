@@ -2,16 +2,13 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import {
+  BlockFooter, Link, List, ListInput, ListItem, Navbar, Page, Popup,
+  Segmented, SegmentedButton, Toggle,
+} from "konsta/react";
 import { merchantName } from "@/app/services/analytics/merchant";
 import { addTransaction, modifyTransaction } from "./actions";
-
-const faint = { color: "var(--ledger-faint)" };
-const rule = { borderColor: "var(--ledger-rule)" };
-const caption = "shrink-0 text-[11px] uppercase tracking-wider";
-// 16px inputs keep iOS Safari from zooming in on focus.
-const bare = "min-w-0 flex-1 bg-transparent text-right text-base outline-none";
-const button = "min-h-11 flex-1 border px-3 text-sm disabled:opacity-40";
+import { usePopup } from "./use-popup";
 
 /** What add mode reports once an entry is saved, so the list can find it. */
 export type AddedEntry = {
@@ -48,21 +45,22 @@ function localToday(): string {
 }
 
 /**
- * The Entry sheet. In modify mode it's the bottom sheet behind an entry's
- * Modify action: edits its name (Motive),
- * Category, amount and date together; Type stays as logged. The amount is
- * the headline, the rest sit beneath it as ledger rows. When an Expense's
- * Category changes, a checkbox (on by default) also saves it as a Category
+ * The Entry sheet: an iOS modal (Konsta Popup) with Cancel and Save in its
+ * navbar. In modify mode it sits behind an entry's Modify action: edits its
+ * name (Motive), Category, amount and date together; Type stays as logged.
+ * The amount is the headline, the rest sit beneath it as a grouped list. When an Expense's
+ * Category changes, a toggle (on by default) also saves it as a Category
  * Override for the Merchant; unchecked, only this entry changes.
  *
  * In add mode (Add Entry) the same sheet starts empty, with an
  * Expense/Income toggle and the day defaulting to today; future days are
  * refused. Category is optional: left blank, one is chosen on save (see
- * addTransaction). No Category Override checkbox.
+ * addTransaction). No Category Override toggle.
  */
 export function EntrySheet(props: ModifyProps | AddProps) {
   const adding = props.mode === "add";
-  const { categories, onClose } = props;
+  const { categories } = props;
+  const { opened, close: onClose } = usePopup(props.onClose);
   const row = adding ? 0 : props.row;
   const motive = adding ? "" : props.motive;
   const merchant = adding ? "" : props.merchant;
@@ -139,176 +137,155 @@ export function EntrySheet(props: ModifyProps | AddProps) {
     });
   };
 
+  const title = `${adding ? "Add" : "Modify"} ${type === "Income" ? "Income" : "Expense"}`;
+  const saveLabel = pending
+    ? adding && draftCategory === ""
+      ? "Guessing…"
+      : "Saving…"
+    : adding
+      ? "Add"
+      : "Save";
+  const canSave = valid && !pending;
+
   return (
-    <Sheet open onOpenChange={(open) => !open && !pending && onClose()}>
-      <SheetContent
-        side="bottom"
-        // Returning focus to the tray's Modify button would swipe the entry
-        // open again (the tray opens on focus), so leave focus where it is.
-        finalFocus={adding ? undefined : false}
-        className="mx-auto max-w-2xl rounded-t-xl px-5 pb-8 pt-5"
-        style={{
-          background: "var(--ledger-card)",
-          color: "var(--ledger-ink)",
-          fontFamily: "var(--font-ledger)",
-        }}
-      >
-        <div
-          className="mx-auto -mt-2 mb-1 h-1 w-10 rounded-full"
-          style={{ background: "var(--ledger-rule)" }}
+    <Popup opened={opened} onBackdropClick={() => !pending && onClose()}>
+      <Page>
+        <Navbar
+          title={title}
+          left={
+            <Link onClick={() => !pending && onClose()}>
+              Cancel
+            </Link>
+          }
+          right={
+            <Link
+              onClick={save}
+              className={`font-semibold ${canSave ? "" : "pointer-events-none opacity-40"}`}
+            >
+              {saveLabel}
+            </Link>
+          }
         />
-        <SheetTitle
-          className="text-center text-xs uppercase tracking-[0.25em]"
-          style={faint}
-        >
-          {adding ? "Add" : "Modify"} {type === "Income" ? "income" : "expense"}
-        </SheetTitle>
         <form
-          className="flex flex-col gap-4"
+          className="mx-auto max-w-2xl pb-10"
           onSubmit={(e) => {
             e.preventDefault();
             save();
           }}
         >
           {adding && (
-            <div
-              role="radiogroup"
-              aria-label="Type"
-              className="mx-auto mt-1 flex border text-xs uppercase tracking-wider"
-              style={rule}
-            >
-              {(["Expense", "Income"] as const).map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  role="radio"
-                  aria-checked={type === t}
-                  onClick={() => switchType(t)}
-                  className="min-h-9 px-4"
-                  style={
-                    type === t
-                      ? { background: "var(--ledger-ink)", color: "var(--ledger-paper)" }
-                      : faint
-                  }
-                >
-                  {t}
-                </button>
-              ))}
+            <div className="mx-4 mt-4" role="radiogroup" aria-label="Type">
+              <Segmented strong>
+                {(["Expense", "Income"] as const).map((t) => (
+                  <SegmentedButton
+                    key={t}
+                    active={type === t}
+                    role="radio"
+                    aria-checked={type === t}
+                    onClick={(e: React.MouseEvent) => {
+                      e.preventDefault();
+                      switchType(t);
+                    }}
+                  >
+                    {t}
+                  </SegmentedButton>
+                ))}
+              </Segmented>
             </div>
           )}
-          <div className="flex items-baseline justify-center gap-1">
-            <span className="text-3xl" style={faint}>
-              {sign}$
-            </span>
-            <input
-              inputMode="decimal"
-              value={draftAmount}
-              onChange={(e) => setDraftAmount(e.target.value)}
-              placeholder="0.00"
-              autoFocus={adding}
-              aria-label="Amount"
-              className="w-48 bg-transparent text-center text-5xl tabular-nums outline-none"
+          <List strong inset>
+            <ListItem
+              title={
+                <span className="flex w-full items-baseline gap-1 py-2">
+                  <span className="shrink-0 whitespace-nowrap text-3xl font-semibold opacity-40">{sign}$</span>
+                  <input
+                    inputMode="decimal"
+                    value={draftAmount}
+                    onChange={(e) => setDraftAmount(e.target.value)}
+                    placeholder="0.00"
+                    autoFocus={adding}
+                    aria-label="Amount"
+                    className="w-full min-w-0 bg-transparent text-4xl font-bold tabular-nums outline-none"
+                  />
+                </span>
+              }
             />
-          </div>
-          <div className="border-t" style={rule}>
-            <label className="flex items-center justify-between gap-4 border-b py-3" style={rule}>
-              <span className={caption} style={faint}>Name</span>
-              <input
-                value={draftMotive}
-                onChange={(e) => setDraftMotive(e.target.value)}
-                placeholder={adding ? "Where or what" : undefined}
-                className={bare}
-              />
-            </label>
-            <label className="flex items-center justify-between gap-4 border-b py-3" style={rule}>
-              <span className={caption} style={faint}>
-                Category
-                {adding && <span className="block normal-case tracking-normal italic">optional</span>}
-              </span>
-              <select
-                value={draftCategory}
-                onChange={(e) => setDraftCategory(e.target.value)}
-                className={`${bare} appearance-none`}
-              >
-                {adding && <option value="">Guess it for me</option>}
-                {/* A row may hold a Category from before the current list. */}
-                {!adding && !categories.some((c) => c === category) && (
-                  <option value={category}>{category}</option>
-                )}
-                {categories.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="flex items-center justify-between gap-4 border-b py-3" style={rule}>
-              <span className={caption} style={faint}>Date</span>
-              <input
-                type="date"
-                value={day}
-                max={adding ? localToday() : undefined}
-                onChange={(e) => setDay(e.target.value)}
-                className={bare}
-              />
-            </label>
-          </div>
-          {categoryChanged && (
-            <label className="flex items-start gap-2 text-xs" style={faint}>
-              <input
-                type="checkbox"
-                checked={allFromMerchant}
-                onChange={(e) => setAllFromMerchant(e.target.checked)}
-                className="mt-0.5"
-              />
-              <span>
-                Use {draftCategory} for all {nextMerchant} expenses, past and
-                future. Unchecked, only this entry changes.
-              </span>
-            </label>
-          )}
+            <ListInput
+              label="Name"
+              type="text"
+              value={draftMotive}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDraftMotive(e.target.value)}
+              placeholder={adding ? "Where or what" : undefined}
+              // 16px inputs keep iOS Safari from zooming in on focus.
+              inputClassName="text-base"
+            />
+          </List>
+          <List strong inset>
+            {/* A native select: a wheel picker on the iPhone. */}
+            <ListInput
+              label={adding ? "Category (optional)" : "Category"}
+              type="select"
+              dropdown
+              value={draftCategory}
+              onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setDraftCategory(e.target.value)}
+              inputClassName="text-base"
+            >
+              {adding && <option value="">Guess it for me</option>}
+              {/* A row may hold a Category from before the current list. */}
+              {!adding && !categories.some((c) => c === category) && (
+                <option value={category}>{category}</option>
+              )}
+              {categories.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </ListInput>
+            <ListInput
+              label="Date"
+              type="date"
+              value={day}
+              max={adding ? localToday() : undefined}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDay(e.target.value)}
+              inputClassName="text-base"
+            />
+          </List>
           {adding && draftCategory === "" && (
-            <p className="-mt-2 text-xs italic" style={faint}>
+            <BlockFooter inset className="-mt-4 mb-6">
               Leave it blank and a Category is guessed from the name. You can
               change it afterwards with Modify.
-            </p>
+            </BlockFooter>
+          )}
+          {categoryChanged && (
+            <>
+              <List strong inset>
+                <ListItem
+                  label
+                  title={`Use for all ${nextMerchant}`}
+                  after={
+                    <Toggle
+                      checked={allFromMerchant}
+                      onChange={() => setAllFromMerchant(!allFromMerchant)}
+                    />
+                  }
+                />
+              </List>
+              <BlockFooter inset className="-mt-4 mb-6">
+                {allFromMerchant
+                  ? `Every ${nextMerchant} expense, past and future, takes ${draftCategory}.`
+                  : "Only this entry changes."}
+              </BlockFooter>
+            </>
           )}
           {error && (
-            <p role="alert" className="text-xs italic" style={{ color: "var(--ledger-up)" }}>
+            <BlockFooter inset role="alert" className="text-[#FF3B30]">
               {error}
-            </p>
+            </BlockFooter>
           )}
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={pending}
-              className={button}
-              style={rule}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={!valid || pending}
-              className={button}
-              style={{
-                borderColor: "var(--ledger-ink)",
-                background: "var(--ledger-ink)",
-                color: "var(--ledger-paper)",
-              }}
-            >
-              {pending
-                ? adding && draftCategory === ""
-                  ? "Guessing category…"
-                  : "Saving…"
-                : adding
-                  ? "Add entry"
-                  : "Save changes"}
-            </button>
-          </div>
+          {/* Lets the keyboard's Go/Return submit. */}
+          <button type="submit" hidden />
         </form>
-      </SheetContent>
-    </Sheet>
+      </Page>
+    </Popup>
   );
 }

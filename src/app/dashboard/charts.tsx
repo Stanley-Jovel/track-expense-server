@@ -1,6 +1,8 @@
 "use client";
 
 import {
+  Area,
+  ComposedChart,
   Line,
   LineChart,
   ResponsiveContainer,
@@ -16,24 +18,25 @@ const MONTH_ABBR = [
   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
 ];
 
-const AXIS_TICK = {
-  fill: "var(--ledger-faint)",
-  fontSize: 11,
-  fontFamily: "var(--font-ledger)",
-} as const;
+// Swift Charts look: system blue for this period, grey dashes for the last.
+// SVG presentation attributes can't read CSS variables, so literal colours.
+const BLUE = "#007AFF";
+const GHOST = "#AEAEB2";
+const AXIS_TICK = { fill: "#8E8E93", fontSize: 11 } as const;
+const GRID = "rgba(142,142,147,.25)";
 
 const TOOLTIP_STYLE = {
-  background: "var(--ledger-card)",
-  border: "1px solid var(--ledger-rule)",
-  borderRadius: 2,
+  background: "rgba(255,255,255,.92)",
+  border: "none",
+  borderRadius: 12,
+  boxShadow: "0 4px 20px rgba(0,0,0,.12)",
   fontSize: 12,
-  fontFamily: "var(--font-ledger)",
-  color: "var(--ledger-ink)",
+  color: "#000",
 } as const;
 
 /**
- * Cumulative Spending through the window (solid ink) against the previous
- * window's cumulative ghost (dotted). Day units for a month, months for a year.
+ * Cumulative Spending through the window (blue line over a faint fill)
+ * against the previous window's cumulative ghost (grey dashes). Day units for a month, months for a year.
  */
 export function PaceChart({
   data,
@@ -44,12 +47,12 @@ export function PaceChart({
 }) {
   return (
     <ResponsiveContainer width="100%" height={180}>
-      <LineChart data={data} margin={{ top: 4, right: 4, left: 4, bottom: 0 }}>
+      <ComposedChart data={data} margin={{ top: 8, right: 4, left: 4, bottom: 0 }}>
         <XAxis
           dataKey="unit"
           tick={AXIS_TICK}
           tickLine={false}
-          axisLine={{ stroke: "var(--ledger-rule)" }}
+          axisLine={{ stroke: GRID }}
           interval={yearly ? 0 : "preserveStartEnd"}
           minTickGap={yearly ? 4 : 32}
           tickFormatter={(u: number) =>
@@ -72,24 +75,27 @@ export function PaceChart({
         <Line
           type="monotone"
           dataKey="previous"
-          stroke="var(--ledger-faint)"
-          strokeWidth={1}
-          strokeDasharray="2 4"
+          stroke={GHOST}
+          strokeWidth={2}
+          strokeDasharray="4 4"
           dot={false}
         />
-        <Line
+        <Area
           type="monotone"
           dataKey="current"
-          stroke="var(--ledger-ink)"
-          strokeWidth={1.75}
+          stroke={BLUE}
+          strokeWidth={2.5}
+          fill={BLUE}
+          fillOpacity={0.12}
           dot={false}
+          activeDot={{ r: 5, stroke: "#fff", strokeWidth: 2 }}
         />
-      </LineChart>
+      </ComposedChart>
     </ResponsiveContainer>
   );
 }
 
-/** All-time view: Spending per month as a single thin ink line. */
+/** All-time view: Spending per month as a single blue line. */
 export function MonthlyTrendChart({ data }: { data: TimePoint[] }) {
   return (
     <ResponsiveContainer width="100%" height={180}>
@@ -98,7 +104,7 @@ export function MonthlyTrendChart({ data }: { data: TimePoint[] }) {
           dataKey="label"
           tick={AXIS_TICK}
           tickLine={false}
-          axisLine={{ stroke: "var(--ledger-rule)" }}
+          axisLine={{ stroke: GRID }}
           interval="preserveStartEnd"
           minTickGap={28}
           tickFormatter={formatMonthShort}
@@ -112,8 +118,8 @@ export function MonthlyTrendChart({ data }: { data: TimePoint[] }) {
         <Line
           type="monotone"
           dataKey="amount"
-          stroke="var(--ledger-ink)"
-          strokeWidth={1.5}
+          stroke={BLUE}
+          strokeWidth={2.5}
           dot={false}
         />
       </LineChart>

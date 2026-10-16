@@ -1,16 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { Plus } from "lucide-react";
-import { useSearchParams } from "next/navigation";
-import { Input } from "@/components/ui/input";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  ArrowUpDown, Check, ChartPie, ChevronLeft, ChevronRight, Inbox, List as ListIcon,
+  ListFilter, Plus, RefreshCw,
+} from "lucide-react";
+import { useSearchParams } from "next/navigation";
+import {
+  Actions, ActionsButton, ActionsGroup, ActionsLabel, App, Badge, Block,
+  BlockFooter, BlockTitle, Chip, Link, List, ListButton, ListItem, Navbar,
+  Page, Popup, Searchbar, Segmented, SegmentedButton, Tabbar, TabbarLink, Toast,
+} from "konsta/react";
 import { SheetTransaction } from "@/app/services/spreadsheet/types";
 import {
   DashboardFilter,
@@ -29,9 +29,12 @@ import {
 } from "@/app/services/analytics/aggregate";
 import { merchantName } from "@/app/services/analytics/merchant";
 import { MonthlyTrendChart, PaceChart } from "./charts";
+import { CategoryIcon, categoryColor } from "./category-look";
 import { DeleteConfirm, SwipeRow } from "./entry-actions";
 import { AddedEntry, EntrySheet } from "./entry-sheet";
-import { SuggestionsBanner } from "./review-deck";
+import { ReviewDeck } from "./review-deck";
+import { useRefresh } from "./use-refresh";
+import { usePopup } from "./use-popup";
 import type { CategorySuggestion } from "@/app/services/categories/open-categories";
 import { CategoryEntry, categoryList } from "@/app/services/categories/category-list";
 import { formatDay, formatMonthLong, formatUsd } from "./format";
@@ -42,6 +45,8 @@ export type SerializableTransaction = Omit<SheetTransaction, "date"> & {
 
 type SortOrder = "newest" | "oldest" | "largest";
 type PeriodMode = "months" | "years" | "all";
+type Tab = "summary" | "transactions" | "review";
+const TABS: Tab[] = ["summary", "transactions", "review"];
 
 const PAGE_SIZE = 25;
 
@@ -102,6 +107,13 @@ export function DashboardClient({
     const c = searchParams.get("c");
     return c && categories.includes(c) ? c : "all";
   });
+  const [tab, setTab] = useState<Tab>(() => {
+    const t = searchParams.get("tab");
+    return TABS.includes(t as Tab) ? (t as Tab) : "summary";
+  });
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [sortOpen, setSortOpen] = useState(false);
+  const { refresh, pending: refreshing, updated } = useRefresh(fetchedAt);
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<SortOrder>("newest");
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
@@ -123,9 +135,10 @@ export function DashboardClient({
     if (period !== defaultPeriod) params.set("w", period);
     if (type !== "all") params.set("t", type);
     if (category !== "all") params.set("c", category);
+    if (tab !== "summary") params.set("tab", tab);
     const query = params.toString();
     window.history.replaceState(null, "", query ? `?${query}` : location.pathname);
-  }, [period, type, category, defaultPeriod]);
+  }, [period, type, category, tab, defaultPeriod]);
 
   const filter = useMemo<DashboardFilter>(
     () => ({ window: period, type, category }),
@@ -213,6 +226,11 @@ export function DashboardClient({
       setHighlightRow(null);
       return;
     }
+    // The list lives on the Transactions tab: go there to show the entry.
+    if (tab !== "transactions") {
+      setTab("transactions");
+      return; // runs again once the tab is rendered
+    }
     if (index >= visibleCount) {
       setVisibleCount(index + 1);
       return; // runs again once the row is rendered
@@ -222,7 +240,7 @@ export function DashboardClient({
       ?.scrollIntoView({ behavior: "smooth", block: "center" });
     const id = setTimeout(() => setHighlightRow(null), 2500);
     return () => clearTimeout(id);
-  }, [highlightRow, listed, transactions, visibleCount]);
+  }, [highlightRow, listed, transactions, visibleCount, tab]);
 
   useEffect(() => {
     if (hiddenNote === null) return;
@@ -253,13 +271,6 @@ export function DashboardClient({
   };
 
   const { isCurrent, elapsedDays, totalDays } = stats.progress;
-  const periodLabel =
-    mode === "all"
-      ? "All time"
-      : yearly
-        ? `${period} — ${isCurrent ? "year to date" : "full year"}`
-        : `${formatMonthLong(period)}${isCurrent ? `, day ${elapsedDays} of ${totalDays}` : ""}`;
-
   const vsLast =
     stats.previousAtSamePoint === null
       ? null
@@ -290,295 +301,438 @@ export function DashboardClient({
           ],
         ];
 
-  return (
-    <main className="mx-auto max-w-2xl px-5 pb-16 sm:px-8">
-      {/* Masthead: period navigation */}
-      <header className="flex items-baseline justify-between pt-2">
-        <h1
-          className="text-xs uppercase tracking-[0.25em]"
-          style={{ color: "var(--ledger-faint)" }}
-        >
-          The Ledger
-        </h1>
-        <div className="flex flex-col items-end gap-1">
-          <div className="flex items-baseline gap-1">
-            <button
-              onClick={() => stepPeriod(-1)}
-              disabled={mode === "all" || periodIndex <= 0}
-              aria-label={`Previous ${unit}`}
-              className="px-1.5 text-sm disabled:opacity-25"
-              style={{ color: "var(--ledger-faint)" }}
-            >
-              ‹
-            </button>
-            <p className="text-xs italic" style={{ color: "var(--ledger-faint)" }}>
-              {periodLabel}
-            </p>
-            <button
-              onClick={() => stepPeriod(1)}
-              disabled={mode === "all" || periodIndex >= siblings.length - 1}
-              aria-label={`Next ${unit}`}
-              className="px-1.5 text-sm disabled:opacity-25"
-              style={{ color: "var(--ledger-faint)" }}
-            >
-              ›
-            </button>
-          </div>
-          <p
-            className="text-[10px] uppercase tracking-[0.2em]"
-            style={{ color: "var(--ledger-faint)" }}
-          >
-            {(["months", "years", "all"] as const).map((m, i) => (
-              <span key={m}>
-                {i > 0 && "·"}
-                <button
-                  onClick={() => changeMode(m)}
-                  className="px-1"
-                  style={{
-                    textDecoration: mode === m ? "underline" : "none",
-                    textUnderlineOffset: 3,
-                  }}
-                >
-                  {m === "all" ? "all time" : m}
-                </button>
-              </span>
-            ))}
-          </p>
-        </div>
-      </header>
+  const periodTitle =
+    mode === "all" ? "All Time" : yearly ? period : formatMonthLong(period).split(" ")[0];
+  const periodNote =
+    mode === "all"
+      ? null
+      : yearly
+        ? isCurrent
+          ? "Year to date"
+          : "Full year"
+        : isCurrent
+          ? `${formatMonthLong(period)} · day ${elapsedDays} of ${totalDays}`
+          : formatMonthLong(period);
+  const spentLabel =
+    mode === "all"
+      ? "Spent all time"
+      : isCurrent
+        ? `Spent so far this ${unit}`
+        : yearly
+          ? `Spent in ${period}`
+          : "Spent this month";
 
-      <SuggestionsBanner suggestions={suggestions} categories={categoryNames} />
+  const openAdd = () => {
+    setSwipedRow(null);
+    setAdding(true);
+  };
+  const modifying = listed.find((t) => t.row === modifyRow);
+  const confirming = listed.find((t) => t.row === confirmRow);
 
-      {/* Hero figure */}
-      <section className="mt-7 text-center">
-        <p className="text-sm italic" style={{ color: "var(--ledger-faint)" }}>
-          {mode === "all"
-            ? "spent all time"
-            : isCurrent
-              ? `spent so far this ${unit}`
-              : yearly
-                ? `spent in ${period}`
-                : "spent this month"}
-        </p>
-        <p
-          className="mt-1 text-5xl tracking-tight sm:text-6xl"
-          style={{ fontVariantNumeric: "oldstyle-nums" }}
-        >
-          {formatUsd(stats.spending)}
-        </p>
-        {vsLast !== null && (
-          <p
-            className="mt-2 text-sm"
-            style={{
-              color: vsLast > 0 ? "var(--ledger-up)" : "var(--ledger-down)",
-            }}
-          >
-            {vsLast >= 0 ? "▲" : "▼"} {formatUsd(Math.abs(vsLast))}{" "}
-            <span style={{ color: "var(--ledger-faint)" }}>
-              vs. last {unit}
-              {isCurrent ? " at this point" : ""}
-            </span>
-          </p>
-        )}
-      </section>
+  // Navbar buttons shared by every tab.
+  const refreshButton = (
+    <Link onClick={refresh} aria-label="Refresh" className={refreshing ? "pointer-events-none" : ""}>
+      <RefreshCw size={20} className={refreshing ? "animate-spin" : ""} />
+    </Link>
+  );
+  const filterButton = (
+    <Link onClick={() => setFiltersOpen(true)} aria-label="Filters">
+      <ListFilter size={22} />
+    </Link>
+  );
+  const addButton = (
+    <Link onClick={openAdd} aria-label="Add an entry">
+      <Plus size={24} />
+    </Link>
+  );
+  const rightButtons = (...buttons: React.ReactNode[]) => (
+    <span className="flex items-center gap-4">
+      {buttons.map((b, i) => (
+        <Fragment key={i}>{b}</Fragment>
+      ))}
+    </span>
+  );
 
-      {/* Stat strip */}
-      <section
-        className="mt-7 border-y"
-        style={{ borderColor: "var(--ledger-rule)" }}
-      >
-        {statStrip.map((row, i) => (
-          <div
-            key={i}
-            className={`grid grid-cols-3 divide-x py-4 text-center ${i > 0 ? "border-t" : ""}`}
-            style={{ borderColor: "var(--ledger-rule)" }}
-          >
-            {row.map(([label, value]) => (
-              <div
-                key={label}
-                className="px-2"
-                style={{ borderColor: "var(--ledger-rule)" }}
-              >
-                <p className="text-lg sm:text-xl">{value}</p>
-                <p
-                  className="mt-1 text-[11px] uppercase tracking-wider"
-                  style={{ color: "var(--ledger-faint)" }}
-                >
-                  {label}
-                </p>
-              </div>
-            ))}
-          </div>
-        ))}
-      </section>
-
-      {/* Filters */}
-      <div className="mt-6 flex gap-2">
-        <Select
-          value={type}
-          onValueChange={(v) => v !== null && setType(v as DashboardFilter["type"])}
-        >
-          <SelectTrigger className="flex-1" aria-label="Type">
-            <SelectValue>{type === "all" ? "All types" : type}</SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All types</SelectItem>
-            <SelectItem value="Expense">Expense</SelectItem>
-            <SelectItem value="Income">Income</SelectItem>
-          </SelectContent>
-        </Select>
-        <Select
-          value={category}
-          onValueChange={(v) => v !== null && setCategory(v)}
-        >
-          <SelectTrigger className="flex-1" aria-label="Category">
-            <SelectValue>
-              {category === "all" ? "All categories" : category}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All categories</SelectItem>
-            {categories.map((c) => (
-              <SelectItem key={c} value={c}>
-                {c}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      {/* Pace / trend */}
-      <SectionTitle>
-        {mode === "all" ? "Spending by month" : `Pace — this ${unit} against last`}
-      </SectionTitle>
-      {mode === "all" ? (
-        <MonthlyTrendChart data={trend} />
-      ) : (
-        <PaceChart data={pace} yearly={yearly} />
+  // Chips for the filters in force; each clears its own.
+  const filterChips = (type !== "all" || category !== "all") && (
+    <Block className="my-3 flex flex-wrap gap-2">
+      {type !== "all" && (
+        <Chip deleteButton onDelete={() => setType("all")}>
+          {type}
+        </Chip>
       )}
+      {category !== "all" && (
+        <Chip deleteButton onDelete={() => setCategory("all")}>
+          {category}
+        </Chip>
+      )}
+    </Block>
+  );
 
-      {/* Movers */}
+  const summary = (
+    <>
+      {filterChips}
+      {periodNote && <BlockFooter className="-mb-4 mt-2">{periodNote}</BlockFooter>}
+      <List strong inset>
+        <li className="px-4 pb-3 pt-4">
+          <p className="text-[15px] font-medium opacity-55">{spentLabel}</p>
+          <p className="text-[40px] font-bold leading-tight tracking-tight tabular-nums">
+            {formatUsd(stats.spending)}
+          </p>
+          {vsLast !== null && (
+            <p
+              className="text-[15px] font-semibold"
+              style={{ color: vsLast > 0 ? "#FF3B30" : "#34C759" }}
+            >
+              {vsLast >= 0 ? "▲" : "▼"} {formatUsd(Math.abs(vsLast))}{" "}
+              <span className="font-normal opacity-60" style={{ color: "initial" }}>
+                vs. last {unit}
+                {isCurrent ? " at this point" : ""}
+              </span>
+            </p>
+          )}
+          <div className="mt-3">
+            {mode === "all" ? (
+              <MonthlyTrendChart data={trend} />
+            ) : (
+              <PaceChart data={pace} yearly={yearly} />
+            )}
+          </div>
+          <p className="mt-1 flex gap-4 text-xs opacity-55">
+            {mode === "all" ? (
+              <span>Spending by month</span>
+            ) : (
+              <>
+                <span>
+                  <span className="text-primary">●</span> This {unit}
+                </span>
+                <span>
+                  <span className="text-[#AEAEB2]">●</span> Last {unit}
+                </span>
+              </>
+            )}
+          </p>
+        </li>
+      </List>
+
+      <List strong inset>
+        {statStrip.flat().map(([label, value]) => (
+          <ListItem key={label} title={label} after={<span className="tabular-nums">{value}</span>} />
+        ))}
+      </List>
+
       {movers.length > 0 && (
         <>
-          <SectionTitle>Where it moved</SectionTitle>
-          <div className="space-y-2">
+          <BlockTitle>Where It Moved</BlockTitle>
+          <List strong inset>
             {movers.map((m) => (
-              <div
+              <ListItem
                 key={m.category}
-                className="flex items-baseline justify-between gap-3 text-sm"
-              >
-                <span>{m.category}</span>
-                <span
-                  className="flex-1 border-b border-dotted"
-                  style={{ borderColor: "var(--ledger-rule)" }}
-                />
-                <span
-                  className="tabular-nums"
-                  style={{
-                    color: m.delta > 0 ? "var(--ledger-up)" : "var(--ledger-down)",
-                  }}
-                >
-                  {m.delta >= 0 ? "+" : "−"}
-                  {formatUsd(Math.abs(m.delta))}
-                </span>
-              </div>
+                media={<CategoryIcon category={m.category} />}
+                title={m.category}
+                after={
+                  <span
+                    className="tabular-nums"
+                    style={{ color: m.delta > 0 ? "#FF3B30" : "#34C759" }}
+                  >
+                    {m.delta >= 0 ? "+" : "−"}
+                    {formatUsd(Math.abs(m.delta))}
+                  </span>
+                }
+              />
             ))}
-          </div>
+          </List>
         </>
       )}
 
-      {/* Categories */}
-      <SectionTitle>Spending by category</SectionTitle>
-      {breakdown.length === 0 && <EmptyNote />}
-      <div className="space-y-2.5">
-        {breakdown.slice(0, 10).map((c) => {
-          const max = breakdown[0].amount;
-          return (
-            <div key={c.category}>
-              <div className="flex items-baseline justify-between text-sm">
-                <span>{c.category}</span>
-                <span className="tabular-nums">{formatUsd(c.amount)}</span>
-              </div>
-              <div
-                className="mt-1 h-px w-full"
-                style={{ background: "var(--ledger-rule)" }}
-              >
-                <div
+      <BlockTitle>Spending by Category</BlockTitle>
+      <List strong inset>
+        {breakdown.length === 0 && <ListItem title={<EmptyNote />} />}
+        {breakdown.slice(0, 10).map((c) => (
+          <ListItem
+            key={c.category}
+            media={<CategoryIcon category={c.category} />}
+            title={c.category}
+            after={<span className="tabular-nums">{formatUsd(c.amount)}</span>}
+            text={
+              <span className="mt-1.5 block h-1 overflow-hidden rounded-full bg-black/5 dark:bg-white/10">
+                <span
+                  className="block h-full rounded-full"
                   style={{
-                    width: `${Math.max((c.amount / max) * 100, 1)}%`,
-                    background: "var(--ledger-ink)",
-                    height: 3,
-                    marginTop: -1,
+                    width: `${Math.max((c.amount / breakdown[0].amount) * 100, 2)}%`,
+                    background: categoryColor(c.category),
                   }}
                 />
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Merchants */}
-      <SectionTitle>Top merchants</SectionTitle>
-      {merchants.length === 0 && <EmptyNote />}
-      <div className="space-y-1.5">
-        {merchants.map((m, i) => (
-          <div key={m.merchant} className="flex items-baseline gap-3 text-sm">
-            <span
-              className="w-5 shrink-0 text-right italic"
-              style={{ color: "var(--ledger-faint)" }}
-            >
-              {i + 1}.
-            </span>
-            <span className="min-w-0 truncate">{m.merchant}</span>
-            <span className="text-xs italic" style={{ color: "var(--ledger-faint)" }}>
-              ×{m.count}
-            </span>
-            <span className="ml-auto shrink-0 tabular-nums">
-              {formatUsd(m.amount)}
-            </span>
-          </div>
+              </span>
+            }
+          />
         ))}
-      </div>
+      </List>
 
-      {/* Entries */}
-      <SectionTitle>Entries ({listed.length})</SectionTitle>
-      <div className="mb-3 flex gap-2">
-        <Input
-          placeholder="Search merchant or category"
-          value={search}
-          onChange={(e) => {
-            setSearch(e.target.value);
+      <BlockTitle>Top Merchants</BlockTitle>
+      <List strong inset>
+        {merchants.length === 0 && <ListItem title={<EmptyNote />} />}
+        {merchants.map((m, i) => (
+          <ListItem
+            key={m.merchant}
+            media={<span className="w-5 text-right text-[15px] opacity-40">{i + 1}</span>}
+            title={m.merchant}
+            after={
+              <span className="flex gap-3 tabular-nums">
+                <span className="opacity-60">×{m.count}</span>
+                {formatUsd(m.amount)}
+              </span>
+            }
+          />
+        ))}
+      </List>
+    </>
+  );
+
+  // Newest/oldest group by day like the iOS Wallet list; largest is one list.
+  const shown = listed.slice(0, visibleCount);
+  const groups: [string, typeof shown][] = [];
+  for (const t of shown) {
+    const key = sort === "largest" ? `${listed.length} entries` : formatDay(t.date);
+    const last = groups[groups.length - 1];
+    if (last && last[0] === key) last[1].push(t);
+    else groups.push([key, [t]]);
+  }
+
+  const transactionsTab = (
+    <>
+      <Block className="my-3 flex flex-wrap gap-2">
+        <Chip onClick={() => setTab("summary")}>{periodNote ?? "All time"}</Chip>
+        {type !== "all" && (
+          <Chip deleteButton onDelete={() => setType("all")}>
+            {type}
+          </Chip>
+        )}
+        {category !== "all" && (
+          <Chip deleteButton onDelete={() => setCategory("all")}>
+            {category}
+          </Chip>
+        )}
+      </Block>
+      {listed.length === 0 && (
+        <List strong inset>
+          <ListItem title={<EmptyNote />} />
+        </List>
+      )}
+      {groups.map(([label, rows]) => (
+        <div key={label}>
+          <BlockTitle>{label}</BlockTitle>
+          <List strong inset>
+            {rows.map((t) => (
+              <li
+                key={t.row}
+                data-row={t.row}
+                className="transition-colors duration-700"
+                style={{ background: highlightRow === t.row ? "rgba(0,122,255,.18)" : undefined }}
+              >
+                <SwipeRow
+                  open={swipedRow === t.row}
+                  onOpenChange={(open) => setSwipedRow(open ? t.row : null)}
+                  onModify={() => {
+                    setSwipedRow(null);
+                    setConfirmRow(null);
+                    setModifyRow(t.row);
+                  }}
+                  onDelete={() => {
+                    setSwipedRow(null);
+                    setConfirmRow(t.row);
+                  }}
+                  label={`${t.merchant}, ${formatUsd(t.amount)}`}
+                >
+                  <ListItem
+                    component="div"
+                    media={<CategoryIcon category={t.category} />}
+                    title={<span title={t.motive}>{t.merchant}</span>}
+                    footer={sort === "largest" ? `${t.category} · ${formatDay(t.date)}` : t.category}
+                    after={
+                      <span
+                        className={`tabular-nums ${
+                          t.type === "Income" ? "text-[#34C759]" : "text-black dark:text-white"
+                        }`}
+                      >
+                        {t.type === "Income" ? "+" : "−"}
+                        {formatUsd(t.amount)}
+                      </span>
+                    }
+                  />
+                </SwipeRow>
+              </li>
+            ))}
+          </List>
+        </div>
+      ))}
+      {listed.length > visibleCount && (
+        <List strong inset>
+          <ListButton onClick={() => setVisibleCount((n) => n + PAGE_SIZE)}>
+            Show More ({listed.length - visibleCount} remaining)
+          </ListButton>
+        </List>
+      )}
+    </>
+  );
+
+  const navbar =
+    tab === "summary" ? (
+      <Navbar
+        large
+        title={periodTitle}
+        subtitle={updated ?? undefined}
+        left={refreshButton}
+        right={rightButtons(filterButton, addButton)}
+        subnavbar={
+          <div className="flex w-full items-center gap-2">
+            <Link
+              onClick={() => stepPeriod(-1)}
+              aria-label={`Previous ${unit}`}
+              className={mode === "all" || periodIndex <= 0 ? "pointer-events-none opacity-30" : ""}
+            >
+              <ChevronLeft size={24} />
+            </Link>
+            <Segmented strong className="flex-1">
+              {(["months", "years", "all"] as const).map((m) => (
+                <SegmentedButton key={m} active={mode === m} onClick={() => changeMode(m)}>
+                  {m === "all" ? "All" : m === "months" ? "Months" : "Years"}
+                </SegmentedButton>
+              ))}
+            </Segmented>
+            <Link
+              onClick={() => stepPeriod(1)}
+              aria-label={`Next ${unit}`}
+              className={
+                mode === "all" || periodIndex >= siblings.length - 1
+                  ? "pointer-events-none opacity-30"
+                  : ""
+              }
+            >
+              <ChevronRight size={24} />
+            </Link>
+          </div>
+        }
+      />
+    ) : tab === "transactions" ? (
+      <Navbar
+        large
+        title="Transactions"
+        subtitle={updated ?? undefined}
+        left={refreshButton}
+        right={rightButtons(
+          <Link onClick={() => setSortOpen(true)} aria-label="Sort">
+            <ArrowUpDown size={21} />
+          </Link>,
+          filterButton,
+          addButton
+        )}
+        subnavbar={
+          <Searchbar
+            placeholder="Search merchant or category"
+            value={search}
+            clearButton
+            onInput={(e: React.ChangeEvent<HTMLInputElement>) => {
+              setSearch(e.target.value);
+              setVisibleCount(PAGE_SIZE);
+            }}
+            onClear={() => {
+              setSearch("");
+              setVisibleCount(PAGE_SIZE);
+            }}
+          />
+        }
+      />
+    ) : (
+      <Navbar
+        large
+        title="Review"
+        subtitle={updated ?? undefined}
+        left={refreshButton}
+        right={addButton}
+      />
+    );
+
+  return (
+    // A phone-width column on wide screens, like the dashboard always was.
+    <App theme="ios" safeAreas className="mx-auto max-w-2xl md:shadow-2xl" style={{ height: "100dvh", minHeight: 0 }}>
+      {/* A page per tab, so each keeps its own scroll and large title. */}
+      <Page key={tab} className="pb-28">
+        {navbar}
+        {tab === "summary" && summary}
+        {tab === "transactions" && transactionsTab}
+        {tab === "review" && <ReviewDeck suggestions={suggestions} categories={categoryNames} />}
+      </Page>
+
+      <Tabbar labels icons className="absolute bottom-0 left-0">
+        {(
+          [
+            ["summary", "Summary", <ChartPie key="i" size={24} />],
+            ["transactions", "Transactions", <ListIcon key="i" size={24} />],
+            [
+              "review",
+              "Review",
+              <span key="i" className="relative">
+                <Inbox size={24} />
+                {suggestions.length > 0 && (
+                  <Badge className="absolute -right-3 -top-1.5" colors={{ bg: "bg-[#FF3B30]" }}>
+                    {suggestions.length}
+                  </Badge>
+                )}
+              </span>,
+            ],
+          ] as const
+        ).map(([key, label, icon]) => (
+          <TabbarLink
+            key={key}
+            active={tab === key}
+            onClick={() => {
+              setSwipedRow(null);
+              setTab(key);
+            }}
+            icon={icon}
+            label={label}
+          />
+        ))}
+      </Tabbar>
+
+      {filtersOpen && (
+        <FiltersPopup
+          type={type}
+          category={category}
+          categories={categories}
+          onType={setType}
+          onCategory={(c) => {
+            setCategory(c);
             setVisibleCount(PAGE_SIZE);
           }}
-          className="flex-1"
+          onClose={() => setFiltersOpen(false)}
         />
-        <Select
-          value={sort}
-          onValueChange={(v) => v !== null && setSort(v as SortOrder)}
-        >
-          <SelectTrigger className="w-[110px]" aria-label="Sort">
-            <SelectValue>
-              {sort === "newest" ? "Newest" : sort === "oldest" ? "Oldest" : "Largest"}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="newest">Newest</SelectItem>
-            <SelectItem value="oldest">Oldest</SelectItem>
-            <SelectItem value="largest">Largest</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-      <button
-        onClick={() => {
-          setSwipedRow(null);
-          setAdding(true);
-        }}
-        className="flex w-full items-center gap-2 border-b border-dashed py-3 text-sm italic"
-        style={{ borderColor: "var(--ledger-rule)", color: "var(--ledger-faint)" }}
-      >
-        <Plus className="h-4 w-4" />
-        Add an entry
-      </button>
+      )}
+
+      <Actions opened={sortOpen} onBackdropClick={() => setSortOpen(false)}>
+        <ActionsGroup>
+          <ActionsLabel>Sort entries</ActionsLabel>
+          {(["newest", "oldest", "largest"] as const).map((o) => (
+            <ActionsButton
+              key={o}
+              bold={sort === o}
+              onClick={() => {
+                setSort(o);
+                setSortOpen(false);
+              }}
+            >
+              {o === "newest" ? "Newest First" : o === "oldest" ? "Oldest First" : "Largest First"}
+            </ActionsButton>
+          ))}
+        </ActionsGroup>
+        <ActionsGroup>
+          <ActionsButton onClick={() => setSortOpen(false)} bold>
+            Cancel
+          </ActionsButton>
+        </ActionsGroup>
+      </Actions>
+
       {adding && (
         <EntrySheet
           mode="add"
@@ -589,121 +743,116 @@ export function DashboardClient({
           onClose={() => setAdding(false)}
         />
       )}
-      {listed.length === 0 && <EmptyNote />}
-      <div>
-        {listed.slice(0, visibleCount).map((t) => (
-          <div
-            key={t.row}
-            data-row={t.row}
-            className="border-b transition-colors duration-700 last:border-0"
-            style={{
-              borderColor: "var(--ledger-rule)",
-              background: highlightRow === t.row ? "var(--ledger-rule)" : undefined,
-            }}
-          >
-            <SwipeRow
-              open={swipedRow === t.row}
-              onOpenChange={(open) => setSwipedRow(open ? t.row : null)}
-              onModify={() => {
-                setSwipedRow(null);
-                setConfirmRow(null);
-                setModifyRow(t.row);
-              }}
-              onDelete={() => {
-                setSwipedRow(null);
-                setConfirmRow(t.row);
-              }}
-              label={`${t.merchant}, ${formatUsd(t.amount)}`}
-            >
-              <div className="flex items-center justify-between gap-3 py-2.5">
-                <div className="min-w-0">
-                  <p className="truncate text-sm" title={t.motive}>
-                    {t.merchant}
-                  </p>
-                  <p className="mt-0.5 text-xs" style={{ color: "var(--ledger-faint)" }}>
-                    {t.category} · {formatDay(t.date)}
-                  </p>
-                </div>
-                <span
-                  className="shrink-0 text-sm tabular-nums"
-                  style={t.type === "Income" ? { color: "var(--ledger-down)" } : undefined}
-                >
-                  {t.type === "Income" ? "+" : "−"}
-                  {formatUsd(t.amount)}
-                </span>
-              </div>
-            </SwipeRow>
-            {modifyRow === t.row && (
-              <EntrySheet
-                row={t.row}
-                motive={t.motive}
-                merchant={t.merchant}
-                category={t.category}
-                categories={categoryNames}
-                amount={t.amount}
-                type={t.type}
-                date={t.date}
-                onClose={() => setModifyRow(null)}
-              />
-            )}
-            {confirmRow === t.row && (
-              <DeleteConfirm
-                row={t.row}
-                motive={t.motive}
-                merchant={t.merchant}
-                amount={t.amount}
-                type={t.type}
-                dateLabel={formatDay(t.date)}
-                onClose={() => setConfirmRow(null)}
-              />
-            )}
-          </div>
-        ))}
-      </div>
-      {listed.length > visibleCount && (
-        <button
-          onClick={() => setVisibleCount((n) => n + PAGE_SIZE)}
-          className="mt-4 w-full border py-2 text-sm italic"
-          style={{
-            borderColor: "var(--ledger-rule)",
-            color: "var(--ledger-faint)",
-          }}
-        >
-          Show more ({listed.length - visibleCount} remaining)
-        </button>
+      {modifying && (
+        <EntrySheet
+          key={modifying.row}
+          row={modifying.row}
+          motive={modifying.motive}
+          merchant={modifying.merchant}
+          category={modifying.category}
+          categories={categoryNames}
+          amount={modifying.amount}
+          type={modifying.type}
+          date={modifying.date}
+          onClose={() => setModifyRow(null)}
+        />
       )}
-      {hiddenNote && (
-        <p
-          role="status"
-          className="fixed left-1/2 z-50 -translate-x-1/2 whitespace-nowrap border px-3 py-1.5 text-xs italic shadow"
-          style={{
-            bottom: "calc(1.5rem + env(safe-area-inset-bottom))",
-            background: "var(--ledger-card)",
-            borderColor: "var(--ledger-rule)",
-          }}
-        >
-          {hiddenNote}
-        </p>
+      {confirming && (
+        <DeleteConfirm
+          key={confirming.row}
+          row={confirming.row}
+          motive={confirming.motive}
+          merchant={confirming.merchant}
+          amount={confirming.amount}
+          type={confirming.type}
+          dateLabel={formatDay(confirming.date)}
+          onClose={() => setConfirmRow(null)}
+        />
       )}
-    </main>
+
+      <Toast position="center" opened={hiddenNote !== null} className="bottom-28">
+        <span role="status">{hiddenNote}</span>
+      </Toast>
+    </App>
   );
 }
 
-function SectionTitle({ children }: { children: React.ReactNode }) {
+/** Type and Category filters, shared by the Summary and Transactions tabs. */
+function FiltersPopup({
+  type,
+  category,
+  categories,
+  onType,
+  onCategory,
+  onClose,
+}: {
+  type: DashboardFilter["type"];
+  category: string;
+  categories: readonly string[];
+  onType: (t: DashboardFilter["type"]) => void;
+  onCategory: (c: string) => void;
+  onClose: () => void;
+}) {
+  const { opened, close } = usePopup(onClose);
+  const tick = (on: boolean) => (on ? <Check size={20} className="text-primary" /> : null);
   return (
-    <h2
-      className="mb-3 mt-10 border-b pb-1 text-[11px] uppercase tracking-[0.2em]"
-      style={{ color: "var(--ledger-faint)", borderColor: "var(--ledger-rule)" }}
-    >
-      {children}
-    </h2>
+    <Popup opened={opened} onBackdropClick={close}>
+      <Page>
+        <Navbar
+          title="Filters"
+          left={
+            <Link
+              onClick={() => {
+                onType("all");
+                onCategory("all");
+              }}
+            >
+              Reset
+            </Link>
+          }
+          right={
+            <Link onClick={close} className="font-semibold">
+              Done
+            </Link>
+          }
+        />
+        <div className="mx-auto max-w-2xl pb-10">
+          <Block className="mt-4">
+            <Segmented strong>
+              {(["all", "Expense", "Income"] as const).map((t) => (
+                <SegmentedButton key={t} active={type === t} onClick={() => onType(t)}>
+                  {t === "all" ? "All Types" : t}
+                </SegmentedButton>
+              ))}
+            </Segmented>
+          </Block>
+          <BlockTitle>Category</BlockTitle>
+          <List strong inset>
+            <ListItem
+              link
+              chevron={false}
+              title="All Categories"
+              after={tick(category === "all")}
+              onClick={() => onCategory("all")}
+            />
+            {categories.map((c) => (
+              <ListItem
+                key={c}
+                link
+                chevron={false}
+                media={<CategoryIcon category={c} />}
+                title={c}
+                after={tick(category === c)}
+                onClick={() => onCategory(c)}
+              />
+            ))}
+          </List>
+        </div>
+      </Page>
+    </Popup>
   );
 }
 
 function EmptyNote() {
-  return (
-    <p className="py-4 text-center text-sm" style={{ color: "var(--ledger-faint)" }}>
-      Nothing here for this filter.
-    </p>
-  );
+  return <span className="opacity-50">Nothing here for this filter.</span>;
 }

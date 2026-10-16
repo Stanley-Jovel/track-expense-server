@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
+import { Dialog, DialogButton } from "konsta/react";
 import { deleteTransaction } from "./actions";
 import { formatUsd } from "./format";
 
@@ -94,8 +95,7 @@ export function SwipeRow({
           onFocus={() => onOpenChange(true)}
           onClick={onModify}
           aria-label={`Modify ${label}`}
-          className="flex-1 text-sm"
-          style={{ background: "var(--ledger-faint)", color: "var(--ledger-card)" }}
+          className="flex-1 bg-[#8E8E93] text-[15px] font-medium text-white"
         >
           Modify
         </button>
@@ -105,18 +105,17 @@ export function SwipeRow({
           onFocus={() => onOpenChange(true)}
           onClick={onDelete}
           aria-label={`Delete ${label}`}
-          className="flex-1 text-sm"
-          style={{ background: "var(--ledger-up)", color: "var(--ledger-card)" }}
+          className="flex-1 bg-[#FF3B30] text-[15px] font-medium text-white"
         >
           Delete
         </button>
       </div>
       <div
-        className="relative"
+        // The inset list's own background, so the tray stays hidden behind it.
+        className="relative bg-ios-light-surface-1 dark:bg-ios-dark-surface-1"
         style={{
           // Keep a mouse drag from selecting the entry's text.
           userSelect: drag === null ? undefined : "none",
-          background: "var(--ledger-paper)",
           transform: `translateX(${offset}px)`,
           transition: drag === null ? "transform 180ms ease-out" : "none",
           touchAction: "pan-y",
@@ -175,8 +174,8 @@ export function SwipeRow({
 }
 
 /**
- * The confirmation shown under an entry after its Delete action: it names
- * the entry, amount and date, because the sheet row is removed for good.
+ * The iOS alert shown after an entry's Delete action: it names the entry,
+ * amount and date, because the sheet row is removed for good.
  */
 export function DeleteConfirm({
   row,
@@ -218,55 +217,43 @@ export function DeleteConfirm({
     });
   };
 
-  const button = "min-h-11 flex-1 border px-3 text-sm disabled:opacity-60";
-
   return (
-    <div
-      role="alertdialog"
-      aria-label={`Delete ${merchant}?`}
-      className="mb-2.5 flex flex-col gap-3 border px-3 py-3 text-sm"
-      style={{ borderColor: "var(--ledger-rule)", background: "var(--ledger-card)" }}
-    >
-      <div>
-        <p className="font-semibold">Delete this {noun}?</p>
-        <p className="mt-1">
-          {merchant}, <span className="tabular-nums">{signed}</span> on {dateLabel}
-        </p>
-        <p className="mt-1 break-words text-xs" style={{ color: "var(--ledger-faint)" }}>
-          Logged as “{motive}”. This removes the row from your Google Sheet. It
-          can&apos;t be undone.
-        </p>
-      </div>
-      <div className="flex gap-2">
-        <button
-          type="button"
-          autoFocus
-          onClick={onClose}
-          disabled={pending}
-          className={button}
-          style={{ borderColor: "var(--ledger-rule)" }}
-        >
-          Cancel
-        </button>
-        <button
-          type="button"
-          onClick={remove}
-          disabled={pending}
-          className={button}
-          style={{
-            borderColor: "var(--ledger-up)",
-            background: "var(--ledger-up)",
-            color: "var(--ledger-card)",
-          }}
-        >
-          {pending ? "Deleting…" : `Delete ${signed}`}
-        </button>
-      </div>
-      {error && (
-        <p role="alert" className="text-xs italic" style={{ color: "var(--ledger-up)" }}>
-          {error}
-        </p>
-      )}
-    </div>
+    <Dialog
+      opened
+      onBackdropClick={() => !pending && onClose()}
+      title={`Delete this ${noun}?`}
+      content={
+        <div role="alertdialog" aria-label={`Delete ${merchant}?`}>
+          <p>
+            {merchant}, <span className="tabular-nums">{signed}</span> on {dateLabel}
+          </p>
+          <p className="mt-1 break-words text-xs opacity-70">
+            Logged as “{motive}”. This removes the row from your Google Sheet. It
+            can&apos;t be undone.
+          </p>
+          {error && (
+            <p role="alert" className="mt-2 text-xs text-[#FF3B30]">
+              {error}
+            </p>
+          )}
+        </div>
+      }
+      buttons={
+        <>
+          <DialogButton onClick={onClose} disabled={pending}>
+            Cancel
+          </DialogButton>
+          {/* iOS 26 destructive alert button: filled red. */}
+          <DialogButton
+            strong
+            onClick={remove}
+            disabled={pending}
+            className="bg-[#FF3B30]! text-white!"
+          >
+            {pending ? "Deleting…" : `Delete ${signed}`}
+          </DialogButton>
+        </>
+      }
+    />
   );
 }

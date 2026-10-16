@@ -2,7 +2,10 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { Inbox } from "lucide-react";
+import {
+  Block, BlockFooter, BlockTitle, Button, List, ListItem,
+} from "konsta/react";
 import { merchantName } from "@/app/services/analytics/merchant";
 import type { CategorySuggestion } from "@/app/services/categories/open-categories";
 import {
@@ -14,24 +17,16 @@ import {
 } from "./suggestion-actions";
 import { formatUsd } from "./format";
 
-const faint = { color: "var(--ledger-faint)" };
-const rule = { borderColor: "var(--ledger-rule)" };
-const ink = {
-  borderColor: "var(--ledger-ink)",
-  background: "var(--ledger-ink)",
-  color: "var(--ledger-paper)",
-};
-// Full-width answers, at least 48px tall: thumb targets on a phone.
-const answer = "min-h-12 w-full border px-4 py-2 text-left text-base disabled:opacity-40";
-
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+const RED = "#FF3B30";
 
 /**
- * The banner under the masthead that counts the waiting Category
- * Suggestions and opens the review deck. Hidden when nothing is waiting; the
- * deck stays open after the last answer so it can say "All caught up".
+ * The Review tab: one waiting Category Suggestion at a time. Answered
+ * Suggestions leave the deck at once (the refreshed list confirms it);
+ * skipped ones go to the back for this visit only. Says "All Caught Up" when
+ * nothing is waiting.
  */
-export function SuggestionsBanner({
+export function ReviewDeck({
   suggestions,
   categories,
 }: {
@@ -39,56 +34,8 @@ export function SuggestionsBanner({
   /** The Category list, for "It's another category…". */
   categories: readonly string[];
 }) {
-  const [open, setOpen] = useState(false);
-  const entries = suggestions.reduce((n, s) => n + s.entries.length, 0);
-
-  return (
-    <>
-      {suggestions.length > 0 && (
-        <button
-          onClick={() => setOpen(true)}
-          className="mt-5 flex w-full items-center justify-between gap-3 border px-4 py-3 text-left"
-          style={{ borderColor: "var(--ledger-ink)" }}
-        >
-          <span className="min-w-0">
-            <span className="block text-sm">
-              {plural(suggestions.length, "new category", "new categories")} suggested
-            </span>
-            <span className="block text-xs italic" style={faint}>
-              from {plural(entries, "entry", "entries")} that didn&apos;t fit the list
-            </span>
-          </span>
-          <span className="shrink-0 text-sm">Review ›</span>
-        </button>
-      )}
-      {open && (
-        <ReviewDeck
-          suggestions={suggestions}
-          categories={categories}
-          onClose={() => setOpen(false)}
-        />
-      )}
-    </>
-  );
-}
-
-/**
- * A tall bottom sheet that shows one waiting Suggestion at a time. Answered
- * Suggestions leave the deck at once (the refreshed list confirms it);
- * skipped ones go to the back for this visit only.
- */
-function ReviewDeck({
-  suggestions,
-  categories,
-  onClose,
-}: {
-  suggestions: CategorySuggestion[];
-  categories: readonly string[];
-  onClose: () => void;
-}) {
   const [answered, setAnswered] = useState<string[]>([]);
   const [skipped, setSkipped] = useState<string[]>([]);
-  const [pending, setPending] = useState(false);
 
   const waiting = suggestions.filter((s) => !answered.includes(s.key));
   const deck = [
@@ -98,56 +45,28 @@ function ReviewDeck({
   ];
   const current = deck[0];
 
+  if (!current) {
+    return (
+      <div className="flex flex-col items-center px-8 pt-32 text-center opacity-80">
+        <Inbox size={56} strokeWidth={1.4} className="mb-3 opacity-50" />
+        <p className="text-[22px] font-bold">All Caught Up</p>
+        <p className="mt-1 text-[15px] opacity-60">Every suggested category has an answer.</p>
+      </div>
+    );
+  }
+
   return (
-    <Sheet open onOpenChange={(open) => !open && !pending && onClose()}>
-      <SheetContent
-        side="bottom"
-        finalFocus={false}
-        // A tall sheet that keeps its height from card to card; the side
-        // variant is needed to beat the bottom sheet's own h-auto.
-        className="mx-auto max-w-2xl gap-0 overflow-y-auto rounded-t-xl px-5 pb-10 pt-5 data-[side=bottom]:h-[88dvh]"
-        style={{
-          background: "var(--ledger-card)",
-          color: "var(--ledger-ink)",
-          fontFamily: "var(--font-ledger)",
-        }}
-      >
-        <div
-          className="mx-auto -mt-2 mb-1 h-1 w-10 shrink-0 rounded-full"
-          style={{ background: "var(--ledger-rule)" }}
-        />
-        <SheetTitle
-          className="mb-5 text-center text-xs uppercase tracking-[0.25em]"
-          style={faint}
-        >
-          {current ? `${deck.length} to review` : "Suggested categories"}
-        </SheetTitle>
-        {current ? (
-          <SuggestionCard
-            // A fresh card per Suggestion resets its rename and error state.
-            key={current.key}
-            suggestion={current}
-            categories={categories}
-            remaining={deck.length - 1}
-            onPendingChange={setPending}
-            onAnswered={() => setAnswered((keys) => [...keys, current.key])}
-            onSkip={() =>
-              setSkipped((keys) => [...keys.filter((k) => k !== current.key), current.key])
-            }
-          />
-        ) : (
-          <div className="flex flex-1 flex-col items-center justify-center gap-5 text-center">
-            <p className="text-3xl">All caught up</p>
-            <p className="text-sm italic" style={faint}>
-              Every suggested category has an answer.
-            </p>
-            <button onClick={onClose} className="min-h-11 w-40 border px-3 text-sm" style={ink}>
-              Done
-            </button>
-          </div>
-        )}
-      </SheetContent>
-    </Sheet>
+    <SuggestionCard
+      // A fresh card per Suggestion resets its rename and error state.
+      key={current.key}
+      suggestion={current}
+      categories={categories}
+      remaining={deck.length - 1}
+      onAnswered={() => setAnswered((keys) => [...keys, current.key])}
+      onSkip={() =>
+        setSkipped((keys) => [...keys.filter((k) => k !== current.key), current.key])
+      }
+    />
   );
 }
 
@@ -158,14 +77,12 @@ function SuggestionCard({
   suggestion,
   categories,
   remaining,
-  onPendingChange,
   onAnswered,
   onSkip,
 }: {
   suggestion: CategorySuggestion;
   categories: readonly string[];
   remaining: number;
-  onPendingChange: (pending: boolean) => void;
   onAnswered: () => void;
   onSkip: () => void;
 }) {
@@ -192,7 +109,6 @@ function SuggestionCard({
     if (pending) return;
     setError(null);
     setChoice(next);
-    onPendingChange(true);
     startTransition(async () => {
       try {
         const result = await act();
@@ -202,7 +118,6 @@ function SuggestionCard({
         // The action never answered (offline, or the server failed).
         setError("Couldn't reach the server. Try again.");
       } finally {
-        onPendingChange(false);
         router.refresh();
       }
     });
@@ -231,13 +146,13 @@ function SuggestionCard({
 
   const hint = suggestion.hint;
   const count = suggestion.entries.length;
+  const label = (busy: Choice, idle: string, during: string) =>
+    pending && choice === busy ? during : idle;
 
   return (
-    <div className="flex flex-col gap-5">
-      <div className="text-center">
-        <p className="text-sm italic" style={faint}>
-          A new category?
-        </p>
+    <div className="pb-6">
+      <Block className="text-center">
+        <p className="text-[15px] opacity-60">A new category?</p>
         {renaming ? (
           <input
             autoFocus
@@ -248,129 +163,120 @@ function SuggestionCard({
             aria-label="Category name"
             maxLength={60}
             enterKeyHint="done"
-            className="mt-1 w-full border-b bg-transparent text-center text-4xl outline-none"
-            style={rule}
+            className="mt-1 w-full border-b border-current/20 bg-transparent text-center text-[34px] font-bold outline-none"
           />
         ) : (
           <button
             onClick={() => setRenaming(true)}
             disabled={pending}
             aria-label={`Rename ${trimmed || "suggestion"}`}
-            className="mt-1 max-w-full break-words text-4xl leading-tight"
+            className="mt-1 max-w-full break-words text-[34px] font-bold leading-tight"
           >
-            {trimmed || <span style={faint}>Name it</span>}
+            {trimmed || <span className="opacity-40">Name it</span>}
           </button>
         )}
-        <p className="mt-2 text-xs italic" style={faint}>
+        <p className="mt-1 text-[13px] opacity-60">
           {plural(count, "entry", "entries")} · {formatUsd(suggestion.total)} ·{" "}
           {renaming ? "type a name" : "tap the name to rename"}
         </p>
-      </div>
+      </Block>
 
-      <ul className="border-t" style={rule}>
+      <BlockTitle>Entries</BlockTitle>
+      <List strong inset>
         {suggestion.entries.map((e) => (
-          <li
+          <ListItem
             key={e.row}
-            className="flex items-baseline gap-3 border-b py-2 text-sm"
-            style={rule}
-          >
-            <span className="min-w-0 flex-1 truncate">{merchantName(e.motive)}</span>
-            <span className="max-w-[40%] shrink-0 truncate text-xs italic" style={faint}>
-              now {e.category}
-            </span>
-            <span className="shrink-0 tabular-nums">{formatUsd(e.amount)}</span>
-          </li>
+            title={merchantName(e.motive)}
+            footer={`now ${e.category}`}
+            after={<span className="tabular-nums">{formatUsd(e.amount)}</span>}
+          />
         ))}
-      </ul>
+      </List>
 
       {error && (
-        <p role="alert" className="text-xs italic" style={{ color: "var(--ledger-up)" }}>
+        <BlockFooter inset role="alert" style={{ color: RED }}>
           {error}
-        </p>
+        </BlockFooter>
       )}
 
-      <div className="flex flex-col gap-2">
-        {hint && (
-          <button
-            onClick={() =>
-              hint.kind === "category" ? merge(hint.name, "hint") : fold(hint.label)
-            }
-            disabled={pending}
-            className={answer}
-            style={rule}
-          >
-            {pending && choice === "hint"
-              ? "Moving…"
-              : `No, it's ${hint.kind === "category" ? hint.name : hint.label}`}
-            <span className="block text-xs italic" style={faint}>
-              {hint.kind === "category" ? "existing category" : "also suggested"}
-            </span>
-          </button>
-        )}
-        <button
+      <Block>
+        <Button
+          large
+          rounded
           onClick={() => approve(true)}
           disabled={pending || trimmed === ""}
-          className={answer}
-          style={ink}
         >
-          {pending && choice === "spending" ? "Adding…" : "Yes, add it as Spending"}
-        </button>
-        <button
-          onClick={() => approve(false)}
-          disabled={pending || trimmed === ""}
-          className={answer}
-          style={rule}
-        >
-          {pending && choice === "movement" ? "Adding…" : "Yes, as Money Movement"}
-          <span className="block text-xs italic" style={faint}>
-            savings, transfers, loan principal: not Spending
-          </span>
-        </button>
-        <button
-          onClick={() =>
-            answerWith("dismiss", () => dismissSuggestion(listed))
-          }
-          disabled={pending}
-          className={answer}
-          style={rule}
-        >
-          {pending && choice === "dismiss" ? "Dismissing…" : "Not a category"}
-          <span className="block text-xs italic" style={faint}>
-            keeps each entry where it is
-          </span>
-        </button>
+          {label("spending", "Yes, Add It as Spending", "Adding…")}
+        </Button>
+      </Block>
+      <List strong inset>
+        {hint && (
+          <ListItem
+            link
+            chevron={false}
+            title={
+              <span className="text-primary">
+                {label(
+                  "hint",
+                  `No, it’s ${hint.kind === "category" ? hint.name : hint.label}`,
+                  "Moving…"
+                )}
+              </span>
+            }
+            footer={hint.kind === "category" ? "existing category" : "also suggested"}
+            onClick={() =>
+              !pending && (hint.kind === "category" ? merge(hint.name, "hint") : fold(hint.label))
+            }
+          />
+        )}
+        <ListItem
+          link
+          chevron={false}
+          title={<span className="text-primary">{label("movement", "Yes, as Money Movement", "Adding…")}</span>}
+          footer="savings, transfers, loan principal: not Spending"
+          onClick={() => !pending && approve(false)}
+        />
         {/* A native picker: a wheel on the iPhone. Picking a Category is the
-            answer, as tapping a button is. */}
-        <label className={`${answer} relative flex items-center`} style={rule}>
-          <span>
-            {pending && choice === "other" ? "Moving…" : "It’s another category…"}
-          </span>
-          <select
-            value=""
-            disabled={pending}
-            onChange={(e) => e.target.value && merge(e.target.value, "other")}
-            aria-label="It's another category"
-            className="absolute inset-0 cursor-pointer opacity-0"
-          >
-            <option value="" disabled>
-              Move these into…
-            </option>
-            {categories.map((c) => (
-              <option key={c} value={c}>
-                {c}
+            answer, as tapping a row is. */}
+        <ListItem
+          className="relative"
+          title={<span className="text-primary">{label("other", "It’s Another Category…", "Moving…")}</span>}
+          footer="move these entries into one on the list"
+          innerChildren={
+            <select
+              value=""
+              disabled={pending}
+              onChange={(e) => e.target.value && merge(e.target.value, "other")}
+              aria-label="It's another category"
+              className="absolute inset-0 cursor-pointer opacity-0"
+            >
+              <option value="" disabled>
+                Move these into…
               </option>
-            ))}
-          </select>
-        </label>
-      </div>
+              {categories.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          }
+        />
+        <ListItem
+          link
+          chevron={false}
+          title={<span style={{ color: RED }}>{label("dismiss", "Not a Category", "Dismissing…")}</span>}
+          footer="keeps each entry where it is"
+          onClick={() => !pending && answerWith("dismiss", () => dismissSuggestion(listed))}
+        />
+      </List>
 
-      <div className="flex items-center justify-between text-xs" style={faint}>
+      <div className="flex items-center justify-between px-8 text-[13px] opacity-60">
         <button
           onClick={onSkip}
           disabled={pending || remaining === 0}
-          className="min-h-11 underline underline-offset-4 disabled:no-underline disabled:opacity-40"
+          className="min-h-11 text-primary disabled:opacity-40"
         >
-          Skip for now
+          Skip for Now
         </button>
         <span>{remaining > 0 ? `${remaining} more after this` : "last one"}</span>
       </div>
