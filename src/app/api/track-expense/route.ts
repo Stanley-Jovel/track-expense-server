@@ -13,10 +13,20 @@ import {
 } from '@/app/services/categories/file-transactions';
 import { SHEET_CACHE_TAGS } from '@/app/services/spreadsheet/cache-tags';
 
+// The Shortcut sends `transaction` as text, but a Shortcuts Dictionary (e.g.
+// the Wallet payment wrapped as { data: … }) arrives as a JSON object. The LLM
+// prompt must be a string, so objects are passed along as their JSON text.
+function transactionText(value: unknown): string {
+  if (typeof value === 'string') return value.trim();
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'object' && Object.keys(value).length === 0) return '';
+  return JSON.stringify(value);
+}
+
 export async function POST(request: Request) {
   try {
-    const body: { transaction: string } = await request.json();
-    const transaction = body.transaction;
+    const body: { transaction?: unknown } = await request.json();
+    const transaction = transactionText(body.transaction);
 
     if (!transaction) {
       return NextResponse.json(
